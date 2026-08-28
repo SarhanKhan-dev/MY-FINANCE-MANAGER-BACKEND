@@ -1,18 +1,18 @@
 # Copies this repo's .env values into the linked Vercel project (production + preview).
 #
 # One-time setup, run from the repo root:
-#   npx vercel login          — sign in (opens browser)
-#   npx vercel link           — pick the MY-FINANCE-MANAGER-BACKEND project
+#   npx vercel login          - sign in (opens browser)
+#   npx vercel link           - pick the project
 # Then:
 #   powershell -ExecutionPolicy Bypass -File scripts/push-env-to-vercel.ps1
 #
-# Seed-only variables (SUPERADMIN_*, USER1_*) and empty values are skipped —
+# Seed-only variables (SUPERADMIN_*, USER1_*) and empty values are skipped -
 # seeding runs locally, never on Vercel.
 
 param([string[]]$Environments = @("production", "preview"))
 
 if (-not (Test-Path .env)) {
-  Write-Error "No .env file here — run this from the repo root."
+  Write-Error "No .env file here - run this from the repo root."
   exit 1
 }
 
@@ -28,7 +28,11 @@ foreach ($line in Get-Content .env) {
     Write-Host "skipped $name (empty)"
     continue
   }
-  if ($skipPrefixes | Where-Object { $name.StartsWith($_) }) {
+  $isSeedOnly = $false
+  foreach ($prefix in $skipPrefixes) {
+    if ($name.StartsWith($prefix)) { $isSeedOnly = $true }
+  }
+  if ($isSeedOnly) {
     Write-Host "skipped $name (seed-only, local)"
     continue
   }
