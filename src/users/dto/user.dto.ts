@@ -1,0 +1,29 @@
+import { ApiProperty } from '@nestjs/swagger';
+import { Role, UserStatus } from '@prisma/client';
+import { SafeUser } from '../../common/types/safe-user';
+
+export class UserDto {
+  @ApiProperty() id: string;
+  @ApiProperty() email: string;
+  @ApiProperty() name: string;
+  @ApiProperty({ enum: Role }) role: Role;
+  @ApiProperty({ enum: UserStatus }) status: UserStatus;
+  @ApiProperty({ type: String, nullable: true, format: 'date-time' })
+  onboardedAt: Date | null;
+  @ApiProperty({ type: String, nullable: true, format: 'date-time' })
+  lastLoginAt: Date | null;
+  @ApiProperty({ type: String, format: 'date-time' }) createdAt: Date;
+
+  static from(user: SafeUser): UserDto {
+    const dto = new UserDto();
+    dto.id = user.id;
+    dto.email = user.email;
+    dto.name = user.name;
+    dto.role = user.role;
+    dto.status = user.status;
+    dto.onboardedAt = user.onboardedAt;
+    dto.lastLoginAt = user.lastLoginAt;
+    dto.createdAt = user.createdAt;
+    return dto;
+  }
+}
