@@ -10,6 +10,7 @@ export const DEFAULT_WALLETS: { name: string; kind: WalletKind; currency: Curren
 
 export const DEFAULT_CATEGORIES = [
   'Food',
+  'Dining out',
   'Grocery',
   'Transport',
   'Health',
