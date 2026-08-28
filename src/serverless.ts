@@ -1,10 +1,9 @@
-import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import express, { Express } from 'express';
 import { IncomingMessage, ServerResponse } from 'http';
-import { AppModule } from '../src/app.module';
-import { configureApp } from '../src/app.setup';
+import { AppModule } from './app.module';
+import { configureApp } from './app.setup';
 
 let cachedServer: Express | undefined;
 
