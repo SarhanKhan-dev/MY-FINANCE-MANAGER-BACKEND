@@ -8,6 +8,7 @@ import { AuthService } from './auth.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
+import { ChangePinDto, VerifyPinDto } from './dto/pin.dto';
 import { SetPasswordDto } from './dto/set-password.dto';
 
 @ApiTags('auth')
@@ -20,7 +21,7 @@ export class AuthController {
   @HttpCode(200)
   @ApiOkResponse({ type: LoginResponseDto })
   login(@Body() dto: LoginDto): Promise<LoginResponseDto> {
-    return this.authService.login(dto.email, dto.password);
+    return this.authService.login(dto.identifier, dto.password);
   }
 
   @Public()
@@ -46,6 +47,28 @@ export class AuthController {
     @Body() dto: ChangePasswordDto,
   ): Promise<{ ok: true }> {
     await this.authService.changePassword(user.id, dto.currentPassword, dto.newPassword);
+    return { ok: true };
+  }
+
+  @Post('verify-pin')
+  @HttpCode(200)
+  @ApiBearerAuth()
+  async verifyPin(
+    @CurrentUser() user: SafeUser,
+    @Body() dto: VerifyPinDto,
+  ): Promise<{ ok: true }> {
+    await this.authService.verifyPin(user.id, dto.pin);
+    return { ok: true };
+  }
+
+  @Post('change-pin')
+  @HttpCode(200)
+  @ApiBearerAuth()
+  async changePin(
+    @CurrentUser() user: SafeUser,
+    @Body() dto: ChangePinDto,
+  ): Promise<{ ok: true }> {
+    await this.authService.changePin(user.id, dto.password, dto.newPin);
     return { ok: true };
   }
 }

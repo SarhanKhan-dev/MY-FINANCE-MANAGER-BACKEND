@@ -31,8 +31,11 @@ enum WalletKind {
 
 model User {
   id           String     @id @default(cuid())
-  email        String     @unique
+  username     String     @unique
+  email        String?    @unique
   passwordHash String?
+  pinHash      String?
+  pinAttempts  Int        @default(0)
   name         String
   role         Role       @default(USER)
   status       UserStatus @default(ACTIVE)
@@ -118,13 +121,13 @@ model EventLog {
 }
 
 model AdminAuditLog {
-  id          String   @id @default(cuid())
-  actorId     String
-  actorEmail  String
-  action      String
-  targetId    String?
-  targetEmail String
-  createdAt   DateTime @default(now())
+  id             String   @id @default(cuid())
+  actorId        String
+  actorUsername  String
+  action         String
+  targetId       String?
+  targetUsername String
+  createdAt      DateTime @default(now())
 
   @@index([createdAt])
 }

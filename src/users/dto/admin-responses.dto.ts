@@ -8,6 +8,11 @@ export class CreatedUserResponseDto {
       'Set-password link for the new user — sent by email automatically once email sending is live; until then share it with them yourself',
   })
   setPasswordLink: string;
+  @ApiProperty({
+    description:
+      "The account's starting 4-digit PIN — shown once; emailed automatically once email sending is live",
+  })
+  initialPin: string;
 }
 
 export class ResetPasswordResponseDto {
@@ -17,8 +22,8 @@ export class ResetPasswordResponseDto {
 
 export class AuditEntryDto {
   @ApiProperty() id: string;
-  @ApiProperty() actorEmail: string;
+  @ApiProperty() actorUsername: string;
   @ApiProperty() action: string;
-  @ApiProperty() targetEmail: string;
+  @ApiProperty() targetUsername: string;
   @ApiProperty({ type: String, format: 'date-time' }) createdAt: Date;
 }

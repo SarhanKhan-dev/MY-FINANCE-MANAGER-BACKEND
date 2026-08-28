@@ -18,6 +18,7 @@ describe('UsersService', () => {
 
   const prisma = {
     user: {
+      findFirst: jest.fn(),
       findUnique: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
@@ -30,8 +31,10 @@ describe('UsersService', () => {
 
   const actor: SafeUser = {
     id: 'admin1',
-    email: 'admin@example.com',
-    name: 'Admin',
+    username: 'shams123@',
+    email: 'shams@example.com',
+    pinAttempts: 0,
+    name: 'Shams',
     role: Role.SUPERADMIN,
     status: UserStatus.ACTIVE,
     onboardedAt: new Date('2026-01-01'),
@@ -42,9 +45,12 @@ describe('UsersService', () => {
 
   const target = (overrides: Partial<User> = {}): User => ({
     id: 'u2',
-    email: 'ali@example.com',
+    username: 'sarhan321@',
+    email: 'sarhan@example.com',
     passwordHash: 'hashed',
-    name: 'Ali',
+    pinHash: 'hashed-pin',
+    pinAttempts: 0,
+    name: 'Sarhan',
     role: Role.USER,
     status: UserStatus.ACTIVE,
     onboardedAt: null,
@@ -63,15 +69,26 @@ describe('UsersService', () => {
   });
 
   describe('createUser', () => {
-    it('creates a USER with no password, seeds defaults, and returns an invite link', async () => {
-      prisma.user.findUnique.mockResolvedValue(null);
+    it('creates a USER with a starting PIN, seeds defaults, and returns the invite link', async () => {
+      prisma.user.findFirst.mockResolvedValue(null);
       tx.user.create.mockResolvedValue(target({ passwordHash: null }));
       passwordTokens.issue.mockResolvedValue('https://app/set-password?token=abc');
 
-      const result = await service.createUser(actor, 'ali@example.com', 'Ali');
+      const result = await service.createUser(
+        actor,
+        'sarhan321@',
+        'Sarhan',
+        'sarhan@example.com',
+      );
 
       expect(tx.user.create).toHaveBeenCalledWith({
-        data: { email: 'ali@example.com', name: 'Ali', role: Role.USER },
+        data: expect.objectContaining({
+          username: 'sarhan321@',
+          name: 'Sarhan',
+          email: 'sarhan@example.com',
+          pinHash: expect.any(String),
+          role: Role.USER,
+        }),
       });
       expect(tx.wallet.createMany).toHaveBeenCalledWith({
         data: DEFAULT_WALLETS.map((wallet) => ({ ...wallet, userId: 'u2' })),
@@ -82,32 +99,47 @@ describe('UsersService', () => {
       expect(tx.userSettings.create).toHaveBeenCalledWith({ data: { userId: 'u2' } });
       expect(passwordTokens.issue).toHaveBeenCalledWith('u2', PasswordTokenPurpose.INVITE, tx);
       expect(result.setPasswordLink).toBe('https://app/set-password?token=abc');
+      expect(result.initialPin).toMatch(/^\d{4}$/);
       expect(prisma.adminAuditLog.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ action: AdminActions.USER_CREATED }),
       });
     });
 
-    it('lowercases the email before saving', async () => {
-      prisma.user.findUnique.mockResolvedValue(null);
+    it('lowercases the username and email before saving', async () => {
+      prisma.user.findFirst.mockResolvedValue(null);
       tx.user.create.mockResolvedValue(target());
       passwordTokens.issue.mockResolvedValue('link');
 
-      await service.createUser(actor, 'ALI@EXAMPLE.COM', 'Ali');
+      await service.createUser(actor, 'SARHAN321@', 'Sarhan', 'Sarhan@Example.com');
 
-      expect(prisma.user.findUnique).toHaveBeenCalledWith({
-        where: { email: 'ali@example.com' },
+      expect(prisma.user.findFirst).toHaveBeenCalledWith({
+        where: {
+          OR: [{ username: 'sarhan321@' }, { email: 'sarhan@example.com' }],
+        },
       });
       expect(tx.user.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ email: 'ali@example.com' }),
+        data: expect.objectContaining({
+          username: 'sarhan321@',
+          email: 'sarhan@example.com',
+        }),
       });
     });
 
-    it('rejects an email that is already used', async () => {
-      prisma.user.findUnique.mockResolvedValue(target());
+    it('rejects a username that is already used', async () => {
+      prisma.user.findFirst.mockResolvedValue(target());
 
-      await expect(service.createUser(actor, 'ali@example.com', 'Ali')).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.createUser(actor, 'sarhan321@', 'Sarhan', 'other@example.com'),
+      ).rejects.toThrow('Username already used');
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('rejects an email that is already used', async () => {
+      prisma.user.findFirst.mockResolvedValue(target());
+
+      await expect(
+        service.createUser(actor, 'different@', 'Someone', 'sarhan@example.com'),
+      ).rejects.toThrow('Email already used');
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
   });
@@ -121,7 +153,11 @@ describe('UsersService', () => {
 
       expect(result.status).toBe(UserStatus.DEACTIVATED);
       expect(prisma.adminAuditLog.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ action: AdminActions.USER_DEACTIVATED }),
+        data: expect.objectContaining({
+          action: AdminActions.USER_DEACTIVATED,
+          actorUsername: 'shams123@',
+          targetUsername: 'sarhan321@',
+        }),
       });
     });
 
@@ -168,10 +204,10 @@ describe('UsersService', () => {
   });
 
   describe('deleteUser', () => {
-    it('deletes when the typed email matches exactly', async () => {
+    it('deletes when the typed username matches exactly', async () => {
       prisma.user.findUnique.mockResolvedValue(target());
 
-      await service.deleteUser(actor, 'u2', 'ali@example.com');
+      await service.deleteUser(actor, 'u2', 'sarhan321@');
 
       expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: 'u2' } });
       expect(prisma.adminAuditLog.create).toHaveBeenCalledWith({
@@ -179,17 +215,25 @@ describe('UsersService', () => {
       });
     });
 
-    it('rejects when the typed email does not match', async () => {
+    it('matches the confirmation case-insensitively', async () => {
       prisma.user.findUnique.mockResolvedValue(target());
 
-      await expect(service.deleteUser(actor, 'u2', 'other@example.com')).rejects.toThrow(
-        'Type the exact email to confirm',
+      await service.deleteUser(actor, 'u2', 'SARHAN321@');
+
+      expect(prisma.user.delete).toHaveBeenCalled();
+    });
+
+    it('rejects when the typed username does not match', async () => {
+      prisma.user.findUnique.mockResolvedValue(target());
+
+      await expect(service.deleteUser(actor, 'u2', 'someone-else')).rejects.toThrow(
+        'Type the exact username to confirm',
       );
       expect(prisma.user.delete).not.toHaveBeenCalled();
     });
 
     it('refuses to delete your own account', async () => {
-      await expect(service.deleteUser(actor, 'admin1', 'admin@example.com')).rejects.toThrow(
+      await expect(service.deleteUser(actor, 'admin1', 'shams123@')).rejects.toThrow(
         BadRequestException,
       );
       expect(prisma.user.delete).not.toHaveBeenCalled();
@@ -203,7 +247,7 @@ describe('UsersService', () => {
       const result = await service.listUsers();
 
       expect(result[0]).not.toHaveProperty('passwordHash');
-      expect(result[0].email).toBe('ali@example.com');
+      expect(result[0].username).toBe('sarhan321@');
     });
   });
 });

@@ -9,7 +9,8 @@ and talks to this API only — it never touches the database.
 
 - NestJS 11 (TypeScript, modules + dependency injection throughout)
 - Prisma with Neon Postgres — pooled connection at runtime, direct connection for migrations
-- JWT auth (Bearer tokens), roles `SUPERADMIN` and `USER`
+- JWT auth (Bearer tokens), **username + password** login, roles `SUPERADMIN` and `USER`;
+  each account has an optional email used only for notification emails
 - OpenAPI generated from code at `/docs` (`/docs-json` for the frontend's typed client)
 
 ## Setup
@@ -18,8 +19,8 @@ and talks to this API only — it never touches the database.
 2. Copy `.env.example` to `.env` and fill it in. `DATABASE_URL` must be Neon's pooled
    (pgbouncer) connection string; `DIRECT_URL` the unpooled one.
 3. `npx prisma migrate dev` — applies migrations to the database.
-4. `npm run seed` — creates the superadmin account from `SUPERADMIN_EMAIL` /
-   `SUPERADMIN_PASSWORD` with default wallets, categories, and settings. Safe to re-run.
+4. `npm run seed` — creates the superadmin (and optionally user 1) from the `SUPERADMIN_*` /
+   `USER1_*` env vars with default wallets, categories, and settings. Safe to re-run.
 5. `npm run start:dev` — API on `http://localhost:3001`, docs on `/docs`.
 
 ## Deployment (Vercel)
@@ -46,10 +47,12 @@ and talks to this API only — it never touches the database.
 
 ## Accounts
 
-Public registration is disabled. The superadmin creates users (`POST /admin/users`), which
-seeds their default wallets, categories, and settings and issues a **set-password link**
+Public registration is disabled. Login is by **username** (a short handle, stored lowercase,
+matched case-insensitively — not an email). The superadmin creates users (`POST /admin/users`),
+which seeds their default wallets, categories, and settings and issues a **set-password link**
 (single use, expires in 7 days; password resets issue a 24-hour link). The user opens the link
 and chooses their password via `POST /auth/set-password` — there are no temporary passwords.
-Links are returned in the admin response until email sending lands, after which they are
-emailed automatically. Users then complete onboarding (`POST /settings/onboarding`) by choosing
-their monthly cap and the day their budget cycle starts.
+Links are returned in the admin response; once email sending lands they are also emailed
+automatically when the account has an email set. Users then complete onboarding
+(`POST /settings/onboarding`) by choosing their monthly cap and the day their budget cycle
+starts.

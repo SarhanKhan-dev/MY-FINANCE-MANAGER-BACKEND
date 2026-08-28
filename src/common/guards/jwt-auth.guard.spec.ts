@@ -21,9 +21,12 @@ describe('JwtAuthGuard', () => {
 
   const user = (overrides: Partial<User> = {}): User => ({
     id: 'u1',
-    email: 'sarhan@example.com',
+    username: 'shams123@',
+    email: 'shams@example.com',
     passwordHash: 'hashed',
-    name: 'Sarhan',
+    pinHash: 'hashed-pin',
+    pinAttempts: 0,
+    name: 'Shams',
     role: Role.USER,
     status: UserStatus.ACTIVE,
     onboardedAt: null,
@@ -104,7 +107,7 @@ describe('JwtAuthGuard', () => {
 
     await expect(guard.canActivate(context(request))).resolves.toBe(true);
 
-    expect(request.user).toMatchObject({ id: 'u1', email: 'sarhan@example.com' });
+    expect(request.user).toMatchObject({ id: 'u1', username: 'shams123@' });
     expect(request.user).not.toHaveProperty('passwordHash');
   });
 });

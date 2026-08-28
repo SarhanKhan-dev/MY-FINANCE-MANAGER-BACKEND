@@ -43,12 +43,13 @@ export class AdminController {
     @CurrentUser() actor: SafeUser,
     @Body() dto: CreateUserDto,
   ): Promise<CreatedUserResponseDto> {
-    const { user, setPasswordLink } = await this.usersService.createUser(
+    const { user, setPasswordLink, initialPin } = await this.usersService.createUser(
       actor,
-      dto.email,
+      dto.username,
       dto.name,
+      dto.email,
     );
-    return { user: UserDto.from(user), setPasswordLink };
+    return { user: UserDto.from(user), setPasswordLink, initialPin };
   }
 
   @Patch('users/:id/deactivate')
@@ -86,7 +87,7 @@ export class AdminController {
     @Param('id') id: string,
     @Body() dto: DeleteUserDto,
   ): Promise<{ ok: true }> {
-    await this.usersService.deleteUser(actor, id, dto.confirmEmail);
+    await this.usersService.deleteUser(actor, id, dto.confirmUsername);
     return { ok: true };
   }
 

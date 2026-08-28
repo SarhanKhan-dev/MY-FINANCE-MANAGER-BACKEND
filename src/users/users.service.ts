@@ -5,10 +5,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PasswordTokenPurpose, Role, User, UserStatus } from '@prisma/client';
+import { hash } from 'bcryptjs';
+import { randomInt } from 'crypto';
 import { PasswordTokensService } from '../auth/password-tokens.service';
 import { SafeUser, toSafeUser } from '../common/types/safe-user';
 import { PrismaService } from '../prisma/prisma.service';
 import { seedUserDefaults } from './user-defaults';
+
+const BCRYPT_ROUNDS = 10;
 
 export const AdminActions = {
   USER_CREATED: 'USER_CREATED',
@@ -34,18 +38,33 @@ export class UsersService {
 
   async createUser(
     actor: SafeUser,
-    email: string,
+    username: string,
     name: string,
-  ): Promise<{ user: SafeUser; setPasswordLink: string }> {
+    email: string,
+  ): Promise<{ user: SafeUser; setPasswordLink: string; initialPin: string }> {
+    const normalizedUsername = username.toLowerCase();
     const normalizedEmail = email.toLowerCase();
-    const existing = await this.prisma.user.findUnique({ where: { email: normalizedEmail } });
+    const existing = await this.prisma.user.findFirst({
+      where: { OR: [{ username: normalizedUsername }, { email: normalizedEmail }] },
+    });
     if (existing) {
-      throw new ConflictException('Email already used');
+      throw new ConflictException(
+        existing.username === normalizedUsername ? 'Username already used' : 'Email already used',
+      );
     }
+
+    const initialPin = randomInt(0, 10000).toString().padStart(4, '0');
+    const pinHash = await hash(initialPin, BCRYPT_ROUNDS);
 
     const { user, setPasswordLink } = await this.prisma.$transaction(async (tx) => {
       const created = await tx.user.create({
-        data: { email: normalizedEmail, name, role: Role.USER },
+        data: {
+          username: normalizedUsername,
+          name,
+          email: normalizedEmail,
+          pinHash,
+          role: Role.USER,
+        },
       });
       await seedUserDefaults(tx, created.id);
       const link = await this.passwordTokens.issue(
@@ -57,7 +76,7 @@ export class UsersService {
     });
 
     await this.audit(actor, AdminActions.USER_CREATED, user);
-    return { user: toSafeUser(user), setPasswordLink };
+    return { user: toSafeUser(user), setPasswordLink, initialPin };
   }
 
   async setStatus(actor: SafeUser, userId: string, status: UserStatus): Promise<SafeUser> {
@@ -86,13 +105,13 @@ export class UsersService {
     return { setPasswordLink };
   }
 
-  async deleteUser(actor: SafeUser, userId: string, confirmEmail: string): Promise<void> {
+  async deleteUser(actor: SafeUser, userId: string, confirmUsername: string): Promise<void> {
     if (userId === actor.id) {
       throw new BadRequestException('You cannot delete your own account');
     }
     const user = await this.findOrFail(userId);
-    if (confirmEmail.toLowerCase() !== user.email) {
-      throw new BadRequestException('Type the exact email to confirm');
+    if (confirmUsername.toLowerCase() !== user.username) {
+      throw new BadRequestException('Type the exact username to confirm');
     }
     await this.prisma.user.delete({ where: { id: user.id } });
     await this.audit(actor, AdminActions.USER_DELETED, user);
@@ -117,10 +136,10 @@ export class UsersService {
     await this.prisma.adminAuditLog.create({
       data: {
         actorId: actor.id,
-        actorEmail: actor.email,
+        actorUsername: actor.username,
         action,
         targetId: target.id,
-        targetEmail: target.email,
+        targetUsername: target.username,
       },
     });
   }

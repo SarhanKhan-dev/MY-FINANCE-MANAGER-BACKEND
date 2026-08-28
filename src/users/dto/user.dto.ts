@@ -4,7 +4,9 @@ import { SafeUser } from '../../common/types/safe-user';
 
 export class UserDto {
   @ApiProperty() id: string;
-  @ApiProperty() email: string;
+  @ApiProperty({ example: 'shams123@' }) username: string;
+  @ApiProperty({ type: String, nullable: true, description: 'Used only for notification emails' })
+  email: string | null;
   @ApiProperty() name: string;
   @ApiProperty({ enum: Role }) role: Role;
   @ApiProperty({ enum: UserStatus }) status: UserStatus;
@@ -17,6 +19,7 @@ export class UserDto {
   static from(user: SafeUser): UserDto {
     const dto = new UserDto();
     dto.id = user.id;
+    dto.username = user.username;
     dto.email = user.email;
     dto.name = user.name;
     dto.role = user.role;
