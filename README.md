@@ -1,4 +1,6 @@
-# Finance Manager — Backend
+# PAIS-ë — Backend
+
+A DataBlox product.
 
 NestJS REST API for a personal multi-wallet finance tracker (PKR/USD). Runs as a single
 serverless function on Vercel, backed by Neon Postgres through Prisma. The frontend lives in a

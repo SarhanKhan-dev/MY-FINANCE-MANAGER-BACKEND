@@ -42,8 +42,8 @@ export function configureApp(app: INestApplication): void {
   });
 
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('Finance Manager API')
-    .setDescription('REST API for the personal multi-wallet finance manager')
+    .setTitle('PAIS-ë API')
+    .setDescription('REST API for PAIS-ë, the personal finance tracker by DataBlox')
     .setVersion('0.1.0')
     .addBearerAuth()
     .build();
