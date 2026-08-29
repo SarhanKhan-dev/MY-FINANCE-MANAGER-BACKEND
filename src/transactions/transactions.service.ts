@@ -63,6 +63,7 @@ const PERSON_REQUIRED_TYPES: TransactionType[] = [
 ];
 const CAP_TYPES: TransactionType[] = [
   TransactionType.EXPENSE,
+  TransactionType.SALARY,
   TransactionType.LEND,
   TransactionType.TAKEN,
   TransactionType.COMMITTEE_PAY,

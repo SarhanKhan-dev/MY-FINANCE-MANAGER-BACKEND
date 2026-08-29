@@ -56,7 +56,12 @@ describe('BudgetService', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           type: {
-            in: [TransactionType.EXPENSE, TransactionType.TAKEN, TransactionType.CHARITY],
+            in: [
+              TransactionType.EXPENSE,
+              TransactionType.SALARY,
+              TransactionType.TAKEN,
+              TransactionType.CHARITY,
+            ],
           },
         }),
       }),
@@ -75,6 +80,7 @@ describe('BudgetService', () => {
           type: {
             in: [
               TransactionType.EXPENSE,
+              TransactionType.SALARY,
               TransactionType.LEND,
               TransactionType.TAKEN,
               TransactionType.CHARITY,

@@ -4,7 +4,18 @@ import { Merchant } from '@prisma/client';
 import { IsString, Length } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { SafeUser } from '../common/types/safe-user';
+import { TransactionDto } from '../transactions/dto/transaction.dto';
 import { MerchantsService } from './merchants.service';
+
+class MerchantDetailDto {
+  @ApiProperty() id: string;
+  @ApiProperty() name: string;
+  @ApiProperty() spentAllTimePkr: number;
+  @ApiProperty() spentThisCyclePkr: number;
+  @ApiProperty() tripCount: number;
+  @ApiProperty() avgTripPkr: number;
+  @ApiProperty({ type: TransactionDto, isArray: true }) entries: TransactionDto[];
+}
 
 class MerchantNameDto {
   @ApiProperty({ example: 'Al-Madina Store', minLength: 1, maxLength: 60 })
@@ -44,6 +55,16 @@ export class MerchantsController {
     @Body() dto: MerchantNameDto,
   ): Promise<MerchantDto> {
     return MerchantDto.from(await this.merchantsService.create(user.id, dto.name));
+  }
+
+  @Get(':id')
+  @ApiOkResponse({ type: MerchantDetailDto })
+  async detail(
+    @CurrentUser() user: SafeUser,
+    @Param('id') id: string,
+  ): Promise<MerchantDetailDto> {
+    const detail = await this.merchantsService.detail(user.id, id);
+    return { ...detail, entries: detail.entries.map(TransactionDto.from) };
   }
 
   @Patch(':id')

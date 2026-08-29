@@ -4,7 +4,24 @@ import { Category } from '@prisma/client';
 import { IsString, Length } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { SafeUser } from '../common/types/safe-user';
+import { TransactionDto } from '../transactions/dto/transaction.dto';
 import { CategoriesService } from './categories.service';
+
+class CategoryEntryDto {
+  @ApiProperty() matchedPkr: number;
+  @ApiProperty({ type: TransactionDto }) transaction: TransactionDto;
+}
+
+class CategoryDetailDto {
+  @ApiProperty() id: string;
+  @ApiProperty() name: string;
+  @ApiProperty() archived: boolean;
+  @ApiProperty() spentAllTimePkr: number;
+  @ApiProperty() spentThisCyclePkr: number;
+  @ApiProperty() entryCount: number;
+  @ApiProperty() avgPerMonthPkr: number;
+  @ApiProperty({ type: CategoryEntryDto, isArray: true }) entries: CategoryEntryDto[];
+}
 
 class CategoryNameDto {
   @ApiProperty({ example: 'Dining out', minLength: 1, maxLength: 40 })
@@ -70,5 +87,21 @@ export class CategoriesController {
   @ApiOkResponse({ type: CategoryDto })
   async unarchive(@CurrentUser() user: SafeUser, @Param('id') id: string): Promise<CategoryDto> {
     return CategoryDto.from(await this.categoriesService.unarchive(user.id, id));
+  }
+
+  @Get(':id')
+  @ApiOkResponse({ type: CategoryDetailDto })
+  async detail(
+    @CurrentUser() user: SafeUser,
+    @Param('id') id: string,
+  ): Promise<CategoryDetailDto> {
+    const detail = await this.categoriesService.detail(user.id, id);
+    return {
+      ...detail,
+      entries: detail.entries.map((entry) => ({
+        matchedPkr: entry.matchedPkr,
+        transaction: TransactionDto.from(entry.transaction),
+      })),
+    };
   }
 }

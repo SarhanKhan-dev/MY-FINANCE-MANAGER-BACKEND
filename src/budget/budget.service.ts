@@ -94,7 +94,8 @@ export class BudgetService {
       countCharityInCap: boolean;
     },
   ): Promise<number> {
-    const capTypes: TransactionType[] = [TransactionType.EXPENSE];
+    // Salaries paid are real monthly outflow — always inside the cap.
+    const capTypes: TransactionType[] = [TransactionType.EXPENSE, TransactionType.SALARY];
     if (settings.countLendingInCap) capTypes.push(TransactionType.LEND);
     if (settings.countWriteOffsInCap) capTypes.push(TransactionType.TAKEN);
     if (settings.countCommitteesInCap) capTypes.push(TransactionType.COMMITTEE_PAY);
