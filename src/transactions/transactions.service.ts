@@ -21,18 +21,26 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 const WALLET_IN_TYPES: TransactionType[] = [
   TransactionType.INCOME,
-  TransactionType.BORROW,
   TransactionType.REPAY_IN,
   TransactionType.INVESTMENT_OUT,
-  TransactionType.COMMITTEE_PAYOUT,
   TransactionType.OPENING,
 ];
 const WALLET_OUT_TYPES: TransactionType[] = [
   TransactionType.EXPENSE,
-  TransactionType.LEND,
   TransactionType.REPAY_OUT,
   TransactionType.TAKEN,
   TransactionType.CHARITY,
+];
+// Money that may move a wallet — or be a backfill record from before tracking
+// started (old loans, committee months already settled, holdings owned).
+const WALLET_OPTIONAL_OUT: TransactionType[] = [
+  TransactionType.LEND,
+  TransactionType.COMMITTEE_PAY,
+  TransactionType.INVESTMENT_IN,
+];
+const WALLET_OPTIONAL_IN: TransactionType[] = [
+  TransactionType.BORROW,
+  TransactionType.COMMITTEE_PAYOUT,
 ];
 const NO_WALLET_TYPES: TransactionType[] = [
   TransactionType.WORK_OFFSET,
@@ -348,7 +356,14 @@ export class TransactionsService {
     const where = this.buildWhere(userId, query);
     const rows = await this.prisma.transaction.findMany({
       where,
-      select: { type: true, amount: true, currency: true, fxRate: true, fromWalletId: true },
+      select: {
+        type: true,
+        amount: true,
+        currency: true,
+        fxRate: true,
+        fromWalletId: true,
+        toWalletId: true,
+      },
     });
 
     let spent = 0;
@@ -359,15 +374,17 @@ export class TransactionsService {
       if (pkr === null) continue;
       const isOut =
         WALLET_OUT_TYPES.includes(row.type) ||
-        ((row.type === TransactionType.COMMITTEE_PAY ||
-          row.type === TransactionType.INVESTMENT_IN) &&
-          row.fromWalletId !== null);
+        (WALLET_OPTIONAL_OUT.includes(row.type) && row.fromWalletId !== null);
       if (isOut) {
         spent += pkr;
         if (biggest === null || pkr > biggest) biggest = pkr;
       }
-      // Opening balances seed a wallet; they are not money received.
-      if (WALLET_IN_TYPES.includes(row.type) && row.type !== TransactionType.OPENING) {
+      // Opening balances seed a wallet and backfilled records moved no money —
+      // neither is money received.
+      const isIn =
+        (WALLET_IN_TYPES.includes(row.type) && row.type !== TransactionType.OPENING) ||
+        (WALLET_OPTIONAL_IN.includes(row.type) && row.toWalletId !== null);
+      if (isIn) {
         received += pkr;
       }
     }
@@ -495,23 +512,19 @@ export class TransactionsService {
       data.fromWalletId = null;
       data.toWalletId = null;
       data.toAmount = null;
-    } else if (data.type === TransactionType.COMMITTEE_PAY) {
-      // Cash from a wallet, or settled against what the organizer owes (sec 15).
-      if (fromWallet) {
-        if (data.currency !== fromWallet.currency) {
-          throw new BadRequestException('Amount currency must match the wallet');
-        }
-      }
-      requireUsdRate();
-      data.toWalletId = null;
-      data.toAmount = null;
-    } else if (data.type === TransactionType.INVESTMENT_IN) {
-      // Paid from a wallet, or walletless for a holding owned before tracking started.
+    } else if (WALLET_OPTIONAL_OUT.includes(data.type)) {
       if (fromWallet && data.currency !== fromWallet.currency) {
         throw new BadRequestException('Amount currency must match the wallet');
       }
       requireUsdRate();
       data.toWalletId = null;
+      data.toAmount = null;
+    } else if (WALLET_OPTIONAL_IN.includes(data.type)) {
+      if (toWallet && data.currency !== toWallet.currency) {
+        throw new BadRequestException('Amount currency must match the wallet');
+      }
+      requireUsdRate();
+      data.fromWalletId = null;
       data.toAmount = null;
     }
 

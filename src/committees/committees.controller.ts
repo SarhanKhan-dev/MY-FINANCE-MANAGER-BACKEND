@@ -87,6 +87,13 @@ class PayCommitteeDto {
   @IsBoolean()
   viaLedger?: boolean;
 
+  @ApiPropertyOptional({
+    description: 'Month was paid before tracking started — record it without moving money',
+  })
+  @IsOptional()
+  @IsBoolean()
+  alreadyPaid?: boolean;
+
   @ApiPropertyOptional({ example: '2026-08-29' })
   @IsOptional()
   @Matches(DATE_RE)
@@ -94,9 +101,17 @@ class PayCommitteeDto {
 }
 
 class PayoutDto {
-  @ApiProperty()
+  @ApiPropertyOptional({ description: 'Wallet the pot lands in; omit when already received' })
+  @IsOptional()
   @IsString()
-  walletId: string;
+  walletId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Pot was received before tracking started — record it without moving money',
+  })
+  @IsOptional()
+  @IsBoolean()
+  alreadyReceived?: boolean;
 
   @ApiPropertyOptional({ description: 'Defaults to the pot amount' })
   @IsOptional()

@@ -151,6 +151,64 @@ describe('TransactionsService', () => {
     });
   });
 
+  describe('debts from before tracking', () => {
+    it('books a walletless LEND without touching any wallet', async () => {
+      tx.transaction.create.mockResolvedValue(
+        createdRow({ type: TransactionType.LEND, fromWallet: null }),
+      );
+
+      await service.create(
+        'u1',
+        dto({ type: TransactionType.LEND, fromWalletId: undefined, personId: 'p1' }),
+      );
+
+      expect(tx.transaction.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            type: TransactionType.LEND,
+            fromWalletId: null,
+            toWalletId: null,
+            personId: 'p1',
+          }),
+        }),
+      );
+    });
+
+    it('keeps walletless loans out of money spent and received', async () => {
+      prisma.transaction.findMany.mockResolvedValue([
+        {
+          type: TransactionType.LEND,
+          amount: { toString: () => '5000' },
+          currency: Currency.PKR,
+          fxRate: null,
+          fromWalletId: null,
+          toWalletId: null,
+        },
+        {
+          type: TransactionType.BORROW,
+          amount: { toString: () => '7000' },
+          currency: Currency.PKR,
+          fxRate: null,
+          fromWalletId: null,
+          toWalletId: null,
+        },
+        {
+          type: TransactionType.LEND,
+          amount: { toString: () => '1000' },
+          currency: Currency.PKR,
+          fxRate: null,
+          fromWalletId: 'cash',
+          toWalletId: null,
+        },
+      ]);
+
+      const summary = await service.summary('u1', { page: 1, pageSize: 20 });
+
+      expect(summary.spentPkr).toBe(1000);
+      expect(summary.receivedPkr).toBe(0);
+    });
+  });
+
   describe('already-owned holdings', () => {
     it('books a walletless INVESTMENT_IN without touching any wallet', async () => {
       tx.transaction.create.mockResolvedValue(

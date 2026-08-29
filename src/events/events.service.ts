@@ -17,6 +17,19 @@ export interface RecordEventParams {
 export class EventsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async list(userId: string, page: number, pageSize: number) {
+    const [items, total] = await Promise.all([
+      this.prisma.eventLog.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.eventLog.count({ where: { userId } }),
+    ]);
+    return { items, total };
+  }
+
   async record(params: RecordEventParams): Promise<void> {
     const db = params.tx ?? this.prisma;
     await db.eventLog.create({

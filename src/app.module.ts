@@ -13,6 +13,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { EventsModule } from './events/events.module';
 import { FxModule } from './fx/fx.module';
+import { GiftsModule } from './gifts/gifts.module';
 import { GoalsModule } from './goals/goals.module';
 import { GoldModule } from './gold/gold.module';
 import { InvestmentsModule } from './investments/investments.module';
@@ -53,6 +54,7 @@ import { ZakatModule } from './zakat/zakat.module';
     GoldModule,
     CommitteesModule,
     GoalsModule,
+    GiftsModule,
     ZakatModule,
     ReportsModule,
   ],

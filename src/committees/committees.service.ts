@@ -174,14 +174,23 @@ export class CommitteesService {
     return committee;
   }
 
-  /** Pay one month — cash from a wallet, or settled against the organizer's ledger. */
+  /**
+   * Pay one month — cash from a wallet, settled against the organizer's ledger,
+   * or marked as already paid before tracking started (no money moves).
+   */
   async pay(
     userId: string,
     committeeId: string,
-    input: { monthKey?: string; walletId?: string; viaLedger?: boolean; date?: string },
+    input: {
+      monthKey?: string;
+      walletId?: string;
+      viaLedger?: boolean;
+      alreadyPaid?: boolean;
+      date?: string;
+    },
   ) {
     const committee = await this.activeOrFail(userId, committeeId);
-    if (!input.walletId && !input.viaLedger) {
+    if (!input.walletId && !input.viaLedger && !input.alreadyPaid) {
       throw new BadRequestException('Pick a wallet, or settle it from their ledger');
     }
 
@@ -202,12 +211,13 @@ export class CommitteesService {
       userId,
       {
         type: TransactionType.COMMITTEE_PAY,
-        date: input.date ?? toDateKey(pktToday()),
+        date: input.date ?? (input.alreadyPaid ? monthKey : toDateKey(pktToday())),
         amount: Number(committee.installmentPkr),
         currency: 'PKR',
-        fromWalletId: input.viaLedger ? undefined : input.walletId,
-        personId: committee.organizerId,
-        note: `${committee.name} — installment`,
+        fromWalletId: input.viaLedger || input.alreadyPaid ? undefined : input.walletId,
+        // A backfilled month touches neither a wallet nor the organizer's ledger.
+        personId: input.alreadyPaid ? undefined : committee.organizerId,
+        note: `${committee.name} — installment${input.alreadyPaid ? ' (before tracking)' : ''}`,
         force: true,
       },
       undefined,
@@ -223,6 +233,7 @@ export class CommitteesService {
         name: committee.name,
         month: monthKey.slice(0, 7),
         viaLedger: Boolean(input.viaLedger),
+        alreadyPaid: Boolean(input.alreadyPaid),
       },
     });
     return transaction;
@@ -231,21 +242,25 @@ export class CommitteesService {
   async payout(
     userId: string,
     committeeId: string,
-    input: { walletId: string; amount?: number; date?: string },
+    input: { walletId?: string; amount?: number; alreadyReceived?: boolean; date?: string },
   ) {
     const committee = await this.activeOrFail(userId, committeeId);
+    if (!input.walletId && !input.alreadyReceived) {
+      throw new BadRequestException('Into which wallet?');
+    }
     const myMonth = shiftMonth(monthStart(committee.startMonth), committee.myTurn - 1);
 
     const transaction = await this.transactions.create(
       userId,
       {
         type: TransactionType.COMMITTEE_PAYOUT,
-        date: input.date ?? toDateKey(pktToday()),
+        date: input.date ?? (input.alreadyReceived ? toDateKey(myMonth) : toDateKey(pktToday())),
         amount: input.amount ?? Number(committee.potPkr),
         currency: 'PKR',
-        toWalletId: input.walletId,
-        personId: committee.organizerId,
-        note: `${committee.name} — payout`,
+        toWalletId: input.alreadyReceived ? undefined : input.walletId,
+        // Received before tracking: the cash already sits in an opening balance.
+        personId: input.alreadyReceived ? undefined : committee.organizerId,
+        note: `${committee.name} — payout${input.alreadyReceived ? ' (before tracking)' : ''}`,
         force: true,
       },
       undefined,

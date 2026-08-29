@@ -90,7 +90,6 @@ export class CreateTransactionDto {
         TransactionType.EXPENSE,
         TransactionType.TRANSFER,
         TransactionType.CONVERSION,
-        TransactionType.LEND,
         TransactionType.REPAY_OUT,
         TransactionType.TAKEN,
       ] as TransactionType[]
@@ -106,7 +105,6 @@ export class CreateTransactionDto {
         TransactionType.INCOME,
         TransactionType.TRANSFER,
         TransactionType.CONVERSION,
-        TransactionType.BORROW,
         TransactionType.REPAY_IN,
         TransactionType.OPENING,
       ] as TransactionType[]

@@ -55,6 +55,24 @@ export interface Overview {
   recent: TransactionWithRefs[];
 }
 
+export interface MonthFlow {
+  monthKey: string;
+  spentPkr: number;
+  receivedPkr: number;
+}
+
+export interface NamedTotal {
+  name: string;
+  totalPkr: number;
+}
+
+export interface ChartsView {
+  months: MonthFlow[];
+  categories: CategoryLeader[];
+  topShops: NamedTotal[];
+  topProducts: NamedTotal[];
+}
+
 @Injectable()
 export class ReportsService {
   constructor(
@@ -150,12 +168,155 @@ export class ReportsService {
     };
   }
 
+  /** Analyst charts: 6-month money flow, cycle categories, top shops and items. */
+  async charts(userId: string): Promise<ChartsView> {
+    const budget = await this.budget.current(userId);
+    const today = pktToday();
+    const start = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 5, 1));
+
+    const OUT: TransactionType[] = [
+      TransactionType.EXPENSE,
+      TransactionType.REPAY_OUT,
+      TransactionType.TAKEN,
+      TransactionType.CHARITY,
+    ];
+    const OUT_IF_WALLET: TransactionType[] = [
+      TransactionType.LEND,
+      TransactionType.COMMITTEE_PAY,
+      TransactionType.INVESTMENT_IN,
+    ];
+    const IN: TransactionType[] = [
+      TransactionType.INCOME,
+      TransactionType.REPAY_IN,
+      TransactionType.INVESTMENT_OUT,
+    ];
+    const IN_IF_WALLET: TransactionType[] = [
+      TransactionType.BORROW,
+      TransactionType.COMMITTEE_PAYOUT,
+    ];
+
+    const rows = await this.prisma.transaction.findMany({
+      where: { userId, date: { gte: start } },
+      select: {
+        type: true,
+        amount: true,
+        currency: true,
+        fxRate: true,
+        fromWalletId: true,
+        toWalletId: true,
+        date: true,
+      },
+    });
+
+    const byMonth = new Map<string, { spent: number; received: number }>();
+    for (let index = 0; index < 6; index += 1) {
+      const month = new Date(
+        Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 5 + index, 1),
+      );
+      byMonth.set(month.toISOString().slice(0, 7), { spent: 0, received: 0 });
+    }
+    const toPkr = (amount: unknown, currency: Currency, fxRate: unknown) =>
+      currency === Currency.PKR
+        ? Number(amount)
+        : fxRate
+          ? Number(amount) * Number(fxRate)
+          : 0;
+    for (const row of rows) {
+      const bucket = byMonth.get(row.date.toISOString().slice(0, 7));
+      if (!bucket) continue;
+      const pkr = toPkr(row.amount, row.currency, row.fxRate);
+      if (
+        OUT.includes(row.type) ||
+        (OUT_IF_WALLET.includes(row.type) && row.fromWalletId !== null)
+      ) {
+        bucket.spent += pkr;
+      }
+      if (
+        IN.includes(row.type) ||
+        (IN_IF_WALLET.includes(row.type) && row.toWalletId !== null)
+      ) {
+        bucket.received += pkr;
+      }
+    }
+
+    const round = (value: number) => Math.round(value * 100) / 100;
+    const cycleStart = parseDateOnly(budget.cycleStart);
+    const cycleEnd = parseDateOnly(budget.cycleEnd);
+
+    const [categories, shopRows, itemRows] = await Promise.all([
+      this.categoryTotals(userId, budget.cycleStart, budget.cycleEnd),
+      this.prisma.transaction.findMany({
+        where: {
+          userId,
+          type: TransactionType.EXPENSE,
+          merchantId: { not: null },
+          date: { gte: cycleStart, lt: cycleEnd },
+        },
+        select: {
+          amount: true,
+          currency: true,
+          fxRate: true,
+          merchant: { select: { name: true } },
+        },
+      }),
+      this.prisma.transactionItem.findMany({
+        where: {
+          transaction: {
+            userId,
+            type: TransactionType.EXPENSE,
+            date: { gte: cycleStart, lt: cycleEnd },
+          },
+          productId: { not: null },
+        },
+        select: { lineTotal: true, product: { select: { name: true } } },
+      }),
+    ]);
+
+    const shopTotals = new Map<string, number>();
+    for (const row of shopRows) {
+      const name = row.merchant?.name ?? 'Unknown';
+      shopTotals.set(
+        name,
+        (shopTotals.get(name) ?? 0) + toPkr(row.amount, row.currency, row.fxRate),
+      );
+    }
+    const productTotals = new Map<string, number>();
+    for (const item of itemRows) {
+      const name = item.product?.name ?? 'Other';
+      productTotals.set(name, (productTotals.get(name) ?? 0) + Number(item.lineTotal));
+    }
+    const top = (totals: Map<string, number>, count: number): NamedTotal[] =>
+      [...totals.entries()]
+        .map(([name, totalPkr]) => ({ name, totalPkr: round(totalPkr) }))
+        .sort((a, b) => b.totalPkr - a.totalPkr)
+        .slice(0, count);
+
+    return {
+      months: [...byMonth.entries()].map(([monthKey, flow]) => ({
+        monthKey,
+        spentPkr: round(flow.spent),
+        receivedPkr: round(flow.received),
+      })),
+      categories: categories.slice(0, 8),
+      topShops: top(shopTotals, 5),
+      topProducts: top(productTotals, 5),
+    };
+  }
+
   /**
    * Top-5 spend categories in the current cycle (sec 54). Itemized trips are
    * split line by line onto each product's group — one receipt at one shop can
    * feed many categories; only the uncovered remainder stays on the header.
    */
   private async categoryLeaders(
+    userId: string,
+    cycleStart: string,
+    cycleEnd: string,
+  ): Promise<CategoryLeader[]> {
+    return (await this.categoryTotals(userId, cycleStart, cycleEnd)).slice(0, 5);
+  }
+
+  private async categoryTotals(
     userId: string,
     cycleStart: string,
     cycleEnd: string,
@@ -205,8 +366,7 @@ export class ReportsService {
     }
     return Array.from(totals.entries())
       .map(([name, spentPkr]) => ({ name, spentPkr: Math.round(spentPkr * 100) / 100 }))
-      .sort((a, b) => b.spentPkr - a.spentPkr)
-      .slice(0, 5);
+      .sort((a, b) => b.spentPkr - a.spentPkr);
   }
 
   /** Bills and renewals due in the next 7 days, overdue first (sec 39 #8). */

@@ -57,6 +57,24 @@ class OverviewDto {
   @ApiProperty({ type: TransactionDto, isArray: true }) recent: TransactionDto[];
 }
 
+class MonthFlowDto {
+  @ApiProperty({ example: '2026-08' }) monthKey: string;
+  @ApiProperty() spentPkr: number;
+  @ApiProperty() receivedPkr: number;
+}
+
+class NamedTotalDto {
+  @ApiProperty() name: string;
+  @ApiProperty() totalPkr: number;
+}
+
+class ChartsDto {
+  @ApiProperty({ type: MonthFlowDto, isArray: true }) months: MonthFlowDto[];
+  @ApiProperty({ type: CategoryLeaderDto, isArray: true }) categories: CategoryLeaderDto[];
+  @ApiProperty({ type: NamedTotalDto, isArray: true }) topShops: NamedTotalDto[];
+  @ApiProperty({ type: NamedTotalDto, isArray: true }) topProducts: NamedTotalDto[];
+}
+
 @ApiTags('reports')
 @ApiBearerAuth()
 @Controller('reports')
@@ -77,5 +95,11 @@ export class ReportsController {
       upcoming: overview.upcoming,
       recent: overview.recent.map(TransactionDto.from),
     };
+  }
+
+  @Get('charts')
+  @ApiOkResponse({ type: ChartsDto })
+  charts(@CurrentUser() user: SafeUser): Promise<ChartsDto> {
+    return this.reportsService.charts(user.id);
   }
 }
