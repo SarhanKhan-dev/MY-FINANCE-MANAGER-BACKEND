@@ -10,6 +10,7 @@ import { LoginDto } from './dto/login.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
 import { ChangePinDto, VerifyPinDto } from './dto/pin.dto';
 import { SetPasswordDto } from './dto/set-password.dto';
+import { SignupDto, SignupResponseDto } from './dto/signup.dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -22,6 +23,13 @@ export class AuthController {
   @ApiOkResponse({ type: LoginResponseDto })
   login(@Body() dto: LoginDto): Promise<LoginResponseDto> {
     return this.authService.login(dto.identifier, dto.password);
+  }
+
+  @Public()
+  @Post('signup')
+  @ApiOkResponse({ type: SignupResponseDto })
+  signup(@Body() dto: SignupDto): Promise<SignupResponseDto> {
+    return this.authService.signup(dto);
   }
 
   @Public()

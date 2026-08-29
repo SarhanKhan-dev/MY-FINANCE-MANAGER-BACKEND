@@ -177,7 +177,7 @@ export class InvestmentsService {
     userId: string,
     investmentId: string,
     input: {
-      walletId: string;
+      walletId?: string;
       amount?: number;
       units?: number;
       unitPrice?: number;
@@ -237,7 +237,8 @@ export class InvestmentsService {
     userId: string,
     investmentId: string,
     input: {
-      walletId: string;
+      // Optional in the type so TradeDto fits; the engine demands it for the proceeds.
+      walletId?: string;
       amount?: number;
       units?: number;
       unitPrice?: number;

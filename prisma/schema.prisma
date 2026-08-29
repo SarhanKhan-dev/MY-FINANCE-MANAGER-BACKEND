@@ -305,6 +305,9 @@ model Transaction {
 enum InvestmentKind {
   STOCK
   ACCOUNT
+  SAVINGS
+  LAND
+  PROPERTY
   OTHER
 }
 

@@ -69,6 +69,22 @@ export class CategoriesService {
     return updated;
   }
 
+  async unarchive(userId: string, categoryId: string): Promise<Category> {
+    const category = await this.findOrFail(userId, categoryId);
+    const updated = await this.prisma.category.update({
+      where: { id: category.id },
+      data: { archivedAt: null },
+    });
+    await this.events.record({
+      userId,
+      type: EventTypes.CATEGORY_UPDATED,
+      entityType: 'Category',
+      entityId: category.id,
+      after: { name: category.name, restored: true },
+    });
+    return updated;
+  }
+
   async findOrFail(userId: string, categoryId: string): Promise<Category> {
     const category = await this.prisma.category.findFirst({
       where: { id: categoryId, userId },

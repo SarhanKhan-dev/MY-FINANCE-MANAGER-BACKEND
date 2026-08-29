@@ -64,4 +64,11 @@ export class CategoriesController {
   async archive(@CurrentUser() user: SafeUser, @Param('id') id: string): Promise<CategoryDto> {
     return CategoryDto.from(await this.categoriesService.archive(user.id, id));
   }
+
+  @Post(':id/unarchive')
+  @HttpCode(200)
+  @ApiOkResponse({ type: CategoryDto })
+  async unarchive(@CurrentUser() user: SafeUser, @Param('id') id: string): Promise<CategoryDto> {
+    return CategoryDto.from(await this.categoriesService.unarchive(user.id, id));
+  }
 }

@@ -1,16 +1,20 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { UserStatus } from '@prisma/client';
+import { Role, UserStatus } from '@prisma/client';
 import { compare, hash } from 'bcryptjs';
+import { randomInt } from 'crypto';
 import { toSafeUser } from '../common/types/safe-user';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserDto } from '../users/dto/user.dto';
+import { seedUserDefaults } from '../users/user-defaults';
 import { LoginResponseDto } from './dto/login-response.dto';
+import { SignupResponseDto } from './dto/signup.dto';
 import { PasswordTokensService } from './password-tokens.service';
 
 const BCRYPT_ROUNDS = 10;
@@ -54,6 +58,55 @@ export class AuthService {
     });
 
     return { accessToken, user: UserDto.from(toSafeUser(updated)) };
+  }
+
+  /** Public self-signup — only when SIGNUPS_ENABLED=true; PAIS-e stays invite-only otherwise. */
+  async signup(input: {
+    name: string;
+    username: string;
+    email: string;
+    password: string;
+  }): Promise<SignupResponseDto> {
+    if (process.env.SIGNUPS_ENABLED !== 'true') {
+      throw new ForbiddenException('Signups are closed right now');
+    }
+    const username = input.username.toLowerCase().trim();
+    const email = input.email.toLowerCase().trim();
+    const clash = await this.prisma.user.findFirst({
+      where: { OR: [{ username }, { email }] },
+    });
+    if (clash) {
+      throw new ConflictException(
+        clash.username === username ? 'Username is taken' : 'Email is already registered',
+      );
+    }
+
+    const pin = randomInt(0, 10000).toString().padStart(4, '0');
+    const [passwordHash, pinHash] = await Promise.all([
+      hash(input.password, BCRYPT_ROUNDS),
+      hash(pin, BCRYPT_ROUNDS),
+    ]);
+    const user = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          username,
+          name: input.name.trim(),
+          email,
+          passwordHash,
+          pinHash,
+          role: Role.USER,
+        },
+      });
+      await seedUserDefaults(tx, created.id);
+      return created;
+    });
+
+    const accessToken = await this.jwtService.signAsync({
+      sub: user.id,
+      username: user.username,
+      role: user.role,
+    });
+    return { accessToken, user: UserDto.from(toSafeUser(user)), pin };
   }
 
   async setPassword(rawToken: string, newPassword: string): Promise<void> {

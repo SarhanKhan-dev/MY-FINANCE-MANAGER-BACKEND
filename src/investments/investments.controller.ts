@@ -54,9 +54,12 @@ class CreateInvestmentDto {
 }
 
 class TradeDto {
-  @ApiProperty()
+  @ApiPropertyOptional({
+    description: 'Wallet the money moves through; omit on a buy to record an already-owned holding',
+  })
+  @IsOptional()
   @IsString()
-  walletId: string;
+  walletId?: string;
 
   @ApiPropertyOptional({ description: 'For accounts and other holdings' })
   @IsOptional()

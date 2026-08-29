@@ -151,6 +151,62 @@ describe('TransactionsService', () => {
     });
   });
 
+  describe('already-owned holdings', () => {
+    it('books a walletless INVESTMENT_IN without touching any wallet', async () => {
+      tx.transaction.create.mockResolvedValue(
+        createdRow({ type: TransactionType.INVESTMENT_IN, fromWallet: null }),
+      );
+
+      await service.create(
+        'u1',
+        dto({ type: TransactionType.INVESTMENT_IN, fromWalletId: undefined, amount: 100000 }),
+      );
+
+      expect(tx.transaction.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            type: TransactionType.INVESTMENT_IN,
+            fromWalletId: null,
+            toWalletId: null,
+          }),
+        }),
+      );
+    });
+
+    it('still validates the wallet currency when a wallet pays for the buy', async () => {
+      await expect(
+        service.create(
+          'u1',
+          dto({ type: TransactionType.INVESTMENT_IN, fromWalletId: 'cash', currency: Currency.USD }),
+        ),
+      ).rejects.toThrow('Amount currency must match the wallet');
+    });
+
+    it('counts wallet-paid buys as spent but walletless holdings as nothing', async () => {
+      prisma.transaction.findMany.mockResolvedValue([
+        {
+          type: TransactionType.INVESTMENT_IN,
+          amount: { toString: () => '50000' },
+          currency: Currency.PKR,
+          fxRate: null,
+          fromWalletId: 'cash',
+        },
+        {
+          type: TransactionType.INVESTMENT_IN,
+          amount: { toString: () => '999999' },
+          currency: Currency.PKR,
+          fxRate: null,
+          fromWalletId: null,
+        },
+      ]);
+
+      const summary = await service.summary('u1', { page: 1, pageSize: 20 });
+
+      expect(summary.spentPkr).toBe(50000);
+      expect(summary.receivedPkr).toBe(0);
+    });
+  });
+
   describe('opening balances', () => {
     it('books an OPENING straight into the wallet with no person or category', async () => {
       tx.transaction.create.mockResolvedValue(

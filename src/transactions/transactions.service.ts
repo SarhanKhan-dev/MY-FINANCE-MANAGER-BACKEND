@@ -32,7 +32,6 @@ const WALLET_OUT_TYPES: TransactionType[] = [
   TransactionType.LEND,
   TransactionType.REPAY_OUT,
   TransactionType.TAKEN,
-  TransactionType.INVESTMENT_IN,
   TransactionType.CHARITY,
 ];
 const NO_WALLET_TYPES: TransactionType[] = [
@@ -360,7 +359,9 @@ export class TransactionsService {
       if (pkr === null) continue;
       const isOut =
         WALLET_OUT_TYPES.includes(row.type) ||
-        (row.type === TransactionType.COMMITTEE_PAY && row.fromWalletId !== null);
+        ((row.type === TransactionType.COMMITTEE_PAY ||
+          row.type === TransactionType.INVESTMENT_IN) &&
+          row.fromWalletId !== null);
       if (isOut) {
         spent += pkr;
         if (biggest === null || pkr > biggest) biggest = pkr;
@@ -500,6 +501,14 @@ export class TransactionsService {
         if (data.currency !== fromWallet.currency) {
           throw new BadRequestException('Amount currency must match the wallet');
         }
+      }
+      requireUsdRate();
+      data.toWalletId = null;
+      data.toAmount = null;
+    } else if (data.type === TransactionType.INVESTMENT_IN) {
+      // Paid from a wallet, or walletless for a holding owned before tracking started.
+      if (fromWallet && data.currency !== fromWallet.currency) {
+        throw new BadRequestException('Amount currency must match the wallet');
       }
       requireUsdRate();
       data.toWalletId = null;

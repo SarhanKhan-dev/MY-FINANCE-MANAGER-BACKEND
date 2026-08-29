@@ -36,6 +36,23 @@ export class MerchantsService {
     return merchant;
   }
 
+  async rename(userId: string, merchantId: string, name: string): Promise<Merchant> {
+    const merchant = await this.findOrFail(userId, merchantId);
+    const updated = await this.prisma.merchant.update({
+      where: { id: merchant.id },
+      data: { name },
+    });
+    await this.events.record({
+      userId,
+      type: EventTypes.MERCHANT_UPDATED,
+      entityType: 'Merchant',
+      entityId: merchant.id,
+      before: { name: merchant.name },
+      after: { name },
+    });
+    return updated;
+  }
+
   /** Hard delete is only for shops with no history — otherwise archive (sec 46). */
   async remove(userId: string, merchantId: string): Promise<void> {
     const merchant = await this.findOrFail(userId, merchantId);

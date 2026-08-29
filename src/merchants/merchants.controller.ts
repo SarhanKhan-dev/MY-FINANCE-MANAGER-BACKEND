@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { Merchant } from '@prisma/client';
 import { IsString, Length } from 'class-validator';
@@ -44,6 +44,16 @@ export class MerchantsController {
     @Body() dto: MerchantNameDto,
   ): Promise<MerchantDto> {
     return MerchantDto.from(await this.merchantsService.create(user.id, dto.name));
+  }
+
+  @Patch(':id')
+  @ApiOkResponse({ type: MerchantDto })
+  async rename(
+    @CurrentUser() user: SafeUser,
+    @Param('id') id: string,
+    @Body() dto: MerchantNameDto,
+  ): Promise<MerchantDto> {
+    return MerchantDto.from(await this.merchantsService.rename(user.id, id, dto.name));
   }
 
   @Post(':id/archive')
