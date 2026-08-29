@@ -3,6 +3,7 @@ import { hash } from 'bcryptjs';
 import { randomInt } from 'crypto';
 import {
   ensureDefaultCategories,
+  LEGACY_CATEGORIES,
   seedProductCatalog,
   seedUserDefaults,
 } from '../src/users/user-defaults';
@@ -91,25 +92,26 @@ async function main(): Promise<void> {
       await ensureDefaultCategories(tx, user.id);
     });
 
-    // 'Written off' was seeded as a spending category by mistake — write-offs
-    // are People-ledger entries. Tuck it away where it was never used.
-    const writtenOff = await prisma.category.findFirst({
-      where: {
-        userId: user.id,
-        name: { equals: 'Written off', mode: 'insensitive' },
-        archivedAt: null,
-      },
-    });
-    if (writtenOff) {
+    // Retire the old generic buckets the unified list replaced — but only where
+    // they hold no history.
+    for (const legacyName of LEGACY_CATEGORIES) {
+      const legacy = await prisma.category.findFirst({
+        where: {
+          userId: user.id,
+          name: { equals: legacyName, mode: 'insensitive' },
+          archivedAt: null,
+        },
+      });
+      if (!legacy) continue;
       const used = await prisma.transaction.count({
-        where: { userId: user.id, categoryId: writtenOff.id },
+        where: { userId: user.id, categoryId: legacy.id },
       });
       if (used === 0) {
         await prisma.category.update({
-          where: { id: writtenOff.id },
+          where: { id: legacy.id },
           data: { archivedAt: new Date() },
         });
-        console.log(`archived unused 'Written off' category for ${user.username}`);
+        console.log(`archived unused '${legacyName}' for ${user.username}`);
       }
     }
     console.log(`catalog and categories ensured for ${user.username}`);

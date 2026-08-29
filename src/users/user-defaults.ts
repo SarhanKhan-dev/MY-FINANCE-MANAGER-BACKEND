@@ -8,22 +8,42 @@ export const DEFAULT_WALLETS: { name: string; kind: WalletKind; currency: Curren
   { name: 'JazzCash', kind: WalletKind.MOBILE, currency: Currency.PKR },
 ];
 
-// Spending categories are for money leaving wallets. Debt write-offs are NOT
-// one of these — they live in the People ledger as the WRITE_OFF entry type.
+// One category world: spending categories mirror the product catalog groups,
+// plus the few expense-only buckets that have no products (meals out, bills).
+// Person-directed money (salaries, write-offs, loans) is NOT a category —
+// those are People-ledger transaction types.
 export const DEFAULT_CATEGORIES = [
-  'Food',
-  'Dining out',
-  'Grocery',
-  'Transport',
-  'Fuel',
-  'Health',
+  'Dairy & Eggs',
+  'Vegetables',
+  'Fruits',
+  'Meat & Fish',
+  'Staples',
+  'Spices & Condiments',
+  'Bakery & Breakfast',
+  'Beverages',
+  'Snacks',
+  'Cleaning & Laundry',
   'Personal care',
+  'Household',
+  'Vehicle & Fuel',
+  'Dining out',
+  'Transport',
+  'Health',
   'Utilities',
-  'Shopping',
-  'Staff salaries',
   'Charity',
   'Gifts',
   'Other',
+];
+
+/** Old generic buckets superseded by the unified list — retired when unused. */
+export const LEGACY_CATEGORIES = [
+  'Written off',
+  'Staff salaries',
+  'Grocery',
+  'Food',
+  'Shopping',
+  'Fuel',
+  'Cleaning Materials',
 ];
 
 /** Idempotent: adds any default spending category the user doesn't have yet. */
@@ -211,6 +231,45 @@ export const DEFAULT_PRODUCT_CATALOG: Record<string, { name: string; unit: strin
     { name: 'Light bulb', unit: 'piece' },
     { name: 'Batteries', unit: 'packet' },
     { name: 'Aluminium foil', unit: 'roll' },
+  ],
+  'Dining out': [
+    { name: 'Restaurant meal', unit: 'serving' },
+    { name: 'Fast food', unit: 'order' },
+    { name: 'Biryani', unit: 'plate' },
+    { name: 'Karahi', unit: 'serving' },
+    { name: 'BBQ', unit: 'serving' },
+    { name: 'Chai (hotel)', unit: 'cup' },
+    { name: 'Dessert', unit: 'serving' },
+    { name: 'Food delivery', unit: 'order' },
+  ],
+  Health: [
+    { name: 'Medicine', unit: 'packet' },
+    { name: 'Panadol', unit: 'strip' },
+    { name: 'Cough syrup', unit: 'bottle' },
+    { name: 'Vitamins', unit: 'packet' },
+    { name: 'Doctor visit', unit: 'visit' },
+    { name: 'Lab test', unit: 'test' },
+    { name: 'First aid', unit: 'piece' },
+  ],
+  Transport: [
+    { name: 'Rickshaw fare', unit: 'trip' },
+    { name: 'Ride-hailing (Careem / InDrive)', unit: 'trip' },
+    { name: 'Bus ticket', unit: 'trip' },
+    { name: 'Train ticket', unit: 'trip' },
+    { name: 'Qingqi fare', unit: 'trip' },
+  ],
+  Gifts: [
+    { name: 'Cash gift (Eidi / Salami)', unit: 'time' },
+    { name: 'Gift item', unit: 'piece' },
+    { name: 'Mithai box', unit: 'box' },
+    { name: 'Flowers', unit: 'bouquet' },
+  ],
+  Charity: [
+    { name: 'Sadqa', unit: 'time' },
+    { name: 'Zakat', unit: 'time' },
+    { name: 'Fitrana', unit: 'person' },
+    { name: 'Mosque donation', unit: 'time' },
+    { name: 'Donation', unit: 'time' },
   ],
 };
 
