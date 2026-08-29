@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Currency, WalletKind } from '@prisma/client';
 import { BudgetService, BudgetStatus } from '../budget/budget.service';
+import { pktToday } from '../budget/cycle';
 import { DebtsService } from '../debts/debts.service';
 import { FxService } from '../fx/fx.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -24,11 +25,21 @@ export interface OverviewTotals {
   usdRate: number | null;
 }
 
+export interface UpcomingItem {
+  kind: 'bill' | 'subscription';
+  id: string;
+  name: string;
+  dueOn: string;
+  amountPkr: number | null;
+  overdue: boolean;
+}
+
 export interface Overview {
   budget: BudgetStatus;
   wallets: OverviewWallet[];
   totals: OverviewTotals;
   debts: { iOwePkr: number; owedToMePkr: number };
+  upcoming: UpcomingItem[];
   recent: TransactionWithRefs[];
 }
 
@@ -43,11 +54,12 @@ export class ReportsService {
   ) {}
 
   async overview(userId: string): Promise<Overview> {
-    const [budget, walletRows, usdRate, debtsSummary, recent] = await Promise.all([
+    const [budget, walletRows, usdRate, debtsSummary, upcoming, recent] = await Promise.all([
       this.budget.current(userId),
       this.wallets.list(userId),
       this.fx.usdToPkrOrNull(),
       this.debts.summary(userId),
+      this.upcoming(userId),
       this.prisma.transaction.findMany({
         where: { userId },
         include: transactionInclude,
@@ -101,7 +113,46 @@ export class ReportsService {
         usdRate,
       },
       debts: { iOwePkr: debtsSummary.iOwePkr, owedToMePkr: debtsSummary.owedToMePkr },
+      upcoming,
       recent,
     };
+  }
+
+  /** Bills and renewals due in the next 7 days, overdue first (sec 39 #8). */
+  private async upcoming(userId: string): Promise<UpcomingItem[]> {
+    const horizon = new Date(pktToday().getTime() + 8 * 24 * 60 * 60 * 1000);
+    const today = pktToday();
+    const [bills, subscriptions] = await Promise.all([
+      this.prisma.bill.findMany({
+        where: { userId, archivedAt: null, nextDueOn: { lt: horizon } },
+      }),
+      this.prisma.subscription.findMany({
+        where: { userId, archivedAt: null, renewsOn: { lt: horizon } },
+      }),
+    ]);
+
+    const items: UpcomingItem[] = [
+      ...bills
+        .filter((bill) => !(bill.repeat === 'ONCE' && bill.lastPaidOn))
+        .map((bill) => ({
+          kind: 'bill' as const,
+          id: bill.id,
+          name: bill.name,
+          dueOn: bill.nextDueOn.toISOString().slice(0, 10),
+          amountPkr:
+            bill.amount && bill.currency === Currency.PKR ? Number(bill.amount) : null,
+          overdue: bill.nextDueOn < today,
+        })),
+      ...subscriptions.map((subscription) => ({
+        kind: 'subscription' as const,
+        id: subscription.id,
+        name: subscription.name,
+        dueOn: subscription.renewsOn.toISOString().slice(0, 10),
+        amountPkr:
+          subscription.currency === Currency.PKR ? Number(subscription.amount) : null,
+        overdue: subscription.renewsOn < today,
+      })),
+    ];
+    return items.sort((a, b) => a.dueOn.localeCompare(b.dueOn));
   }
 }

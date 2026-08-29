@@ -90,6 +90,7 @@ export class TransactionsService {
     userId: string,
     dto: CreateTransactionDto,
     idempotencyKey?: string,
+    links?: { billId?: string; subscriptionId?: string },
   ): Promise<TransactionWithRefs> {
     if (idempotencyKey) {
       const existing = await this.prisma.transaction.findUnique({
@@ -135,6 +136,8 @@ export class TransactionsService {
           ...fields,
           userId,
           idempotencyKey: idempotencyKey ?? null,
+          billId: links?.billId ?? null,
+          subscriptionId: links?.subscriptionId ?? null,
           ...(items && items.length > 0
             ? { items: { create: items.map((item) => ({ ...item, userId })) } }
             : {}),

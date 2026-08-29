@@ -53,6 +53,8 @@ model User {
   transactionItems  TransactionItem[]
   products          Product[]
   productCategories ProductCategory[]
+  bills             Bill[]
+  subscriptions     Subscription[]
   alertLogs         AlertLog[]
   events            EventLog[]
   passwordTokens    PasswordToken[]
@@ -190,6 +192,10 @@ model Transaction {
   incomeSource   String?
   incomeType     String?
   note           String?
+  billId         String?
+  bill           Bill?           @relation(fields: [billId], references: [id], onDelete: SetNull)
+  subscriptionId String?
+  subscription   Subscription?   @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
   idempotencyKey String?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
@@ -201,6 +207,58 @@ model Transaction {
   @@index([userId, type, date])
   @@index([fromWalletId])
   @@index([toWalletId])
+}
+
+enum RepeatRule {
+  MONTHLY
+  WEEKLY
+  ONCE
+}
+
+model Bill {
+  id              String     @id @default(cuid())
+  userId          String
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  amount          Decimal?   @db.Decimal(14, 2)
+  currency        Currency   @default(PKR)
+  repeat          RepeatRule @default(MONTHLY)
+  nextDueOn       DateTime
+  reminderDays    Int        @default(2)
+  defaultWalletId String?
+  categoryId      String?
+  lastPaidOn      DateTime?
+  archivedAt      DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  transactions Transaction[]
+
+  @@index([userId])
+}
+
+enum SubscriptionPeriod {
+  MONTHLY
+  YEARLY
+}
+
+model Subscription {
+  id              String             @id @default(cuid())
+  userId          String
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  amount          Decimal            @db.Decimal(14, 2)
+  currency        Currency           @default(PKR)
+  period          SubscriptionPeriod @default(MONTHLY)
+  renewsOn        DateTime
+  defaultWalletId String?
+  archivedAt      DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  transactions Transaction[]
+
+  @@index([userId])
 }
 
 model ProductCategory {

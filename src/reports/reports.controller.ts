@@ -29,11 +29,21 @@ class OverviewDebtsDto {
   @ApiProperty() owedToMePkr: number;
 }
 
+class UpcomingItemDto {
+  @ApiProperty({ enum: ['bill', 'subscription'] }) kind: 'bill' | 'subscription';
+  @ApiProperty() id: string;
+  @ApiProperty() name: string;
+  @ApiProperty({ example: '2026-09-01' }) dueOn: string;
+  @ApiProperty({ type: Number, nullable: true }) amountPkr: number | null;
+  @ApiProperty() overdue: boolean;
+}
+
 class OverviewDto {
   @ApiProperty({ type: BudgetStatusDto }) budget: BudgetStatusDto;
   @ApiProperty({ type: OverviewWalletDto, isArray: true }) wallets: OverviewWalletDto[];
   @ApiProperty({ type: OverviewTotalsDto }) totals: OverviewTotalsDto;
   @ApiProperty({ type: OverviewDebtsDto }) debts: OverviewDebtsDto;
+  @ApiProperty({ type: UpcomingItemDto, isArray: true }) upcoming: UpcomingItemDto[];
   @ApiProperty({ type: TransactionDto, isArray: true }) recent: TransactionDto[];
 }
 
@@ -52,6 +62,7 @@ export class ReportsController {
       wallets: overview.wallets,
       totals: overview.totals,
       debts: overview.debts,
+      upcoming: overview.upcoming,
       recent: overview.recent.map(TransactionDto.from),
     };
   }
