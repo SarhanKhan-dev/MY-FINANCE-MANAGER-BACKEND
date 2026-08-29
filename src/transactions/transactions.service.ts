@@ -51,6 +51,14 @@ const CAP_TYPES: TransactionType[] = [
   TransactionType.TAKEN,
 ];
 
+interface NormalizedItem {
+  productId: string | null;
+  label: string | null;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+}
+
 interface NormalizedTransaction {
   type: TransactionType;
   date: Date;
@@ -66,6 +74,7 @@ interface NormalizedTransaction {
   incomeSource: string | null;
   incomeType: string | null;
   note: string | null;
+  items?: NormalizedItem[];
 }
 
 @Injectable()
@@ -105,6 +114,13 @@ export class TransactionsService {
       incomeSource: dto.incomeSource?.trim() || null,
       incomeType: dto.incomeType?.trim() || null,
       note: dto.note?.trim() || null,
+      items: dto.items?.map((item) => ({
+        productId: item.productId ?? null,
+        label: item.label?.trim() || null,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        lineTotal: item.lineTotal,
+      })),
     });
 
     await this.guardDebtLimits(userId, data, dto.force ?? false);
@@ -113,8 +129,16 @@ export class TransactionsService {
     }
 
     const created = await this.prisma.$transaction(async (tx) => {
+      const { items, ...fields } = data;
       const transaction = await tx.transaction.create({
-        data: { ...data, userId, idempotencyKey: idempotencyKey ?? null },
+        data: {
+          ...fields,
+          userId,
+          idempotencyKey: idempotencyKey ?? null,
+          ...(items && items.length > 0
+            ? { items: { create: items.map((item) => ({ ...item, userId })) } }
+            : {}),
+        },
         include: transactionInclude,
       });
       await this.events.record({
@@ -196,12 +220,30 @@ export class TransactionsService {
       incomeType:
         dto.incomeType !== undefined ? dto.incomeType.trim() || null : existing.incomeType,
       note: dto.note !== undefined ? dto.note.trim() || null : existing.note,
+      items: dto.items?.map((item) => ({
+        productId: item.productId ?? null,
+        label: item.label?.trim() || null,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        lineTotal: item.lineTotal,
+      })),
     });
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      const { items, ...fields } = data;
       const transaction = await tx.transaction.update({
         where: { id: existing.id },
-        data,
+        data: {
+          ...fields,
+          ...(items !== undefined
+            ? {
+                items: {
+                  deleteMany: {},
+                  create: items.map((item) => ({ ...item, userId })),
+                },
+              }
+            : {}),
+        },
         include: transactionInclude,
       });
       await this.events.record({
@@ -295,6 +337,7 @@ export class TransactionsService {
       where.OR = [{ fromWalletId: query.walletId }, { toWalletId: query.walletId }];
     }
     if (query.q) where.note = { contains: query.q, mode: 'insensitive' };
+    if (query.itemized) where.items = { some: {} };
     return where;
   }
 
@@ -420,6 +463,32 @@ export class TransactionsService {
       if (!person) throw new NotFoundException('Person not found');
     }
 
+    if (data.items && data.items.length > 0) {
+      if (data.type !== TransactionType.EXPENSE) {
+        throw new BadRequestException('Items are only for spending');
+      }
+      for (const item of data.items) {
+        if (!item.productId && !item.label) {
+          throw new BadRequestException('Every line needs a product or a label');
+        }
+      }
+      const sum = data.items.reduce((total, item) => total + item.lineTotal, 0);
+      if (Math.abs(sum - data.amount) > 0.02) {
+        throw new BadRequestException('Items must add up to the amount');
+      }
+      const productIds = data.items
+        .map((item) => item.productId)
+        .filter((id): id is string => id !== null);
+      if (productIds.length > 0) {
+        const owned = await this.prisma.product.count({
+          where: { id: { in: productIds }, userId },
+        });
+        if (owned !== new Set(productIds).size) {
+          throw new NotFoundException('Product not found');
+        }
+      }
+    }
+
     return data;
   }
 
@@ -507,6 +576,7 @@ export class TransactionsService {
       incomeSource: tx.incomeSource,
       incomeType: tx.incomeType,
       note: tx.note,
+      items: tx.items.length > 0 ? tx.items.length : undefined,
     };
   }
 }

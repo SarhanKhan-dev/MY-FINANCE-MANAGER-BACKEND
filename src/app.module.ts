@@ -14,6 +14,7 @@ import { FxModule } from './fx/fx.module';
 import { MerchantsModule } from './merchants/merchants.module';
 import { PeopleModule } from './people/people.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ProductsModule } from './products/products.module';
 import { ReportsModule } from './reports/reports.module';
 import { SettingsModule } from './settings/settings.module';
 import { TransactionsModule } from './transactions/transactions.module';
@@ -36,6 +37,7 @@ import { WalletsModule } from './wallets/wallets.module';
     BudgetModule,
     DebtsModule,
     FxModule,
+    ProductsModule,
     ReportsModule,
   ],
   controllers: [AppController],

@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Currency, TransactionType } from '@prisma/client';
+import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   IsBoolean,
   IsEnum,
   IsNumber,
@@ -8,11 +10,43 @@ import {
   IsPositive,
   IsString,
   Matches,
+  Max,
   MaxLength,
+  Min,
   ValidateIf,
+  ValidateNested,
 } from 'class-validator';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+export class TransactionItemInputDto {
+  @ApiPropertyOptional({ description: 'Catalog product; leave empty for an Other line' })
+  @IsOptional()
+  @IsString()
+  productId?: string;
+
+  @ApiPropertyOptional({ description: 'Label for a non-catalog line', maxLength: 60 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  label?: string;
+
+  @ApiProperty({ example: 2 })
+  @IsNumber({ maxDecimalPlaces: 3 })
+  @IsPositive()
+  quantity: number;
+
+  @ApiProperty({ example: 320 })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100_000_000)
+  unitPrice: number;
+
+  @ApiProperty({ example: 640 })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  lineTotal: number;
+}
 
 export class CreateTransactionDto {
   @ApiProperty({ enum: TransactionType })
@@ -117,4 +151,15 @@ export class CreateTransactionDto {
   @IsOptional()
   @IsBoolean()
   force?: boolean;
+
+  @ApiPropertyOptional({
+    type: TransactionItemInputDto,
+    isArray: true,
+    description: 'Receipt lines — spending only; totals must add up to the amount',
+  })
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => TransactionItemInputDto)
+  @ArrayMaxSize(100)
+  items?: TransactionItemInputDto[];
 }

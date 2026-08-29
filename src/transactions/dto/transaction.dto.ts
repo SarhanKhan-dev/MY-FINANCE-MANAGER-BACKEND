@@ -13,6 +13,22 @@ class NamedRefDto {
   @ApiProperty() name: string;
 }
 
+class ItemProductRefDto {
+  @ApiProperty() id: string;
+  @ApiProperty() name: string;
+  @ApiProperty() unit: string;
+}
+
+export class TransactionItemDto {
+  @ApiProperty() id: string;
+  @ApiPropertyOptional({ type: ItemProductRefDto, nullable: true })
+  product: ItemProductRefDto | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) label: string | null;
+  @ApiProperty({ type: String, example: '2' }) quantity: string;
+  @ApiProperty({ type: String, example: '320.00' }) unitPrice: string;
+  @ApiProperty({ type: String, example: '640.00' }) lineTotal: string;
+}
+
 export class TransactionDto {
   @ApiProperty() id: string;
   @ApiProperty({ enum: TransactionType }) type: TransactionType;
@@ -29,6 +45,7 @@ export class TransactionDto {
   @ApiPropertyOptional({ type: String, nullable: true }) incomeSource: string | null;
   @ApiPropertyOptional({ type: String, nullable: true }) incomeType: string | null;
   @ApiPropertyOptional({ type: String, nullable: true }) note: string | null;
+  @ApiProperty({ type: TransactionItemDto, isArray: true }) items: TransactionItemDto[];
   @ApiProperty({ type: String, format: 'date-time' }) createdAt: Date;
 
   static from(tx: TransactionWithRefs): TransactionDto {
@@ -48,6 +65,14 @@ export class TransactionDto {
     dto.incomeSource = tx.incomeSource;
     dto.incomeType = tx.incomeType;
     dto.note = tx.note;
+    dto.items = tx.items.map((item) => ({
+      id: item.id,
+      product: item.product,
+      label: item.label,
+      quantity: item.quantity.toString(),
+      unitPrice: item.unitPrice.toFixed(2),
+      lineTotal: item.lineTotal.toFixed(2),
+    }));
     dto.createdAt = tx.createdAt;
     return dto;
   }

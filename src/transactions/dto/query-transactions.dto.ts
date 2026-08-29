@@ -1,7 +1,8 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { TransactionType } from '@prisma/client';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsEnum,
   IsInt,
   IsOptional,
@@ -55,6 +56,12 @@ export class QueryTransactionsDto {
   @IsString()
   @MaxLength(80)
   q?: string;
+
+  @ApiPropertyOptional({ description: 'Only entries with receipt lines' })
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  itemized?: boolean;
 
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()

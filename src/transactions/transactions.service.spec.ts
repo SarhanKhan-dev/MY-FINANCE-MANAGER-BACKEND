@@ -16,6 +16,7 @@ describe('TransactionsService', () => {
     category: { findFirst: jest.fn() },
     merchant: { findFirst: jest.fn() },
     person: { findFirst: jest.fn() },
+    product: { findFirst: jest.fn(), count: jest.fn() },
     transaction: {
       findFirst: jest.fn(),
       findUnique: jest.fn(),
@@ -69,6 +70,7 @@ describe('TransactionsService', () => {
     incomeSource: null,
     incomeType: null,
     note: null,
+    items: [],
     createdAt: new Date(),
     ...over,
   });
@@ -365,6 +367,74 @@ describe('TransactionsService', () => {
       );
 
       expect(budget.checkAlerts).toHaveBeenCalledWith('u1');
+    });
+  });
+
+  describe('receipt items', () => {
+    it('creates nested items when they add up to the amount', async () => {
+      prisma.product.count.mockResolvedValue(1);
+
+      await service.create(
+        'u1',
+        dto({
+          fromWalletId: 'cash',
+          amount: 640,
+          items: [{ productId: 'prod1', quantity: 2, unitPrice: 320, lineTotal: 640 }],
+        }),
+      );
+
+      expect(tx.transaction.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            items: {
+              create: [
+                expect.objectContaining({ productId: 'prod1', lineTotal: 640, userId: 'u1' }),
+              ],
+            },
+          }),
+        }),
+      );
+    });
+
+    it('rejects items that do not add up', async () => {
+      await expect(
+        service.create(
+          'u1',
+          dto({
+            fromWalletId: 'cash',
+            amount: 1000,
+            items: [{ productId: 'prod1', quantity: 1, unitPrice: 640, lineTotal: 640 }],
+          }),
+        ),
+      ).rejects.toThrow('Items must add up to the amount');
+    });
+
+    it('rejects items on anything except spending', async () => {
+      await expect(
+        service.create(
+          'u1',
+          dto({
+            type: TransactionType.INCOME,
+            toWalletId: 'cash',
+            incomeSource: 'x',
+            amount: 640,
+            items: [{ label: 'Other', quantity: 1, unitPrice: 640, lineTotal: 640 }],
+          }),
+        ),
+      ).rejects.toThrow('Items are only for spending');
+    });
+
+    it('rejects a line with neither product nor label', async () => {
+      await expect(
+        service.create(
+          'u1',
+          dto({
+            fromWalletId: 'cash',
+            amount: 640,
+            items: [{ quantity: 1, unitPrice: 640, lineTotal: 640 }],
+          }),
+        ),
+      ).rejects.toThrow('Every line needs a product or a label');
     });
   });
 

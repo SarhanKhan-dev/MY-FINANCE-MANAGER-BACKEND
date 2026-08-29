@@ -6,6 +6,16 @@ export const transactionInclude = {
   category: { select: { id: true, name: true } },
   merchant: { select: { id: true, name: true } },
   person: { select: { id: true, name: true } },
+  items: {
+    select: {
+      id: true,
+      label: true,
+      quantity: true,
+      unitPrice: true,
+      lineTotal: true,
+      product: { select: { id: true, name: true, unit: true } },
+    },
+  },
 } satisfies Prisma.TransactionInclude;
 
 export type TransactionWithRefs = Prisma.TransactionGetPayload<{

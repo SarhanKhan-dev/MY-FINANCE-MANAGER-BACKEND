@@ -36,6 +36,26 @@ export class MerchantsService {
     return merchant;
   }
 
+  /** Hard delete is only for shops with no history — otherwise archive (sec 46). */
+  async remove(userId: string, merchantId: string): Promise<void> {
+    const merchant = await this.findOrFail(userId, merchantId);
+    const used = await this.prisma.transaction.count({
+      where: { userId, merchantId: merchant.id },
+    });
+    if (used > 0) {
+      throw new ConflictException('Has history — archive instead');
+    }
+    await this.prisma.merchant.delete({ where: { id: merchant.id } });
+  }
+
+  async archive(userId: string, merchantId: string): Promise<Merchant> {
+    const merchant = await this.findOrFail(userId, merchantId);
+    return this.prisma.merchant.update({
+      where: { id: merchant.id },
+      data: { archivedAt: new Date() },
+    });
+  }
+
   async findOrFail(userId: string, merchantId: string): Promise<Merchant> {
     const merchant = await this.prisma.merchant.findFirst({
       where: { id: merchantId, userId },
