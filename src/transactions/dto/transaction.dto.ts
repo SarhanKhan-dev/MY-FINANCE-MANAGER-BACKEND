@@ -42,6 +42,7 @@ export class TransactionDto {
   @ApiPropertyOptional({ type: NamedRefDto, nullable: true }) category: NamedRefDto | null;
   @ApiPropertyOptional({ type: NamedRefDto, nullable: true }) merchant: NamedRefDto | null;
   @ApiPropertyOptional({ type: NamedRefDto, nullable: true }) person: NamedRefDto | null;
+  @ApiProperty({ type: NamedRefDto, isArray: true }) forPeople: NamedRefDto[];
   @ApiPropertyOptional({ type: String, nullable: true }) incomeSource: string | null;
   @ApiPropertyOptional({ type: String, nullable: true }) incomeType: string | null;
   @ApiPropertyOptional({ type: String, nullable: true }) note: string | null;
@@ -63,6 +64,7 @@ export class TransactionDto {
     dto.category = tx.category;
     dto.merchant = tx.merchant;
     dto.person = tx.person;
+    dto.forPeople = tx.forPeople.map((tag) => tag.person);
     dto.incomeSource = tx.incomeSource;
     dto.incomeType = tx.incomeType;
     dto.note = tx.note;

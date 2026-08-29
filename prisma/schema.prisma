@@ -162,6 +162,7 @@ model Person {
 
   transactions        Transaction[]
   organizedCommittees Committee[]
+  taggedSpending      TransactionPerson[]
 
   @@unique([userId, name])
   @@index([userId])
@@ -255,6 +256,7 @@ enum TransactionType {
   COMMITTEE_PAYOUT
   CHARITY
   OPENING
+  SALARY
 }
 
 model Transaction {
@@ -294,13 +296,26 @@ model Transaction {
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
-  items TransactionItem[]
+  items     TransactionItem[]
+  forPeople TransactionPerson[]
 
   @@unique([userId, idempotencyKey])
   @@index([userId, date])
   @@index([userId, type, date])
   @@index([fromWalletId])
   @@index([toWalletId])
+}
+
+/// "For whom" tags on a spending — several people can share one receipt.
+model TransactionPerson {
+  id            String      @id @default(cuid())
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  personId      String
+  person        Person      @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@unique([transactionId, personId])
+  @@index([personId])
 }
 
 enum InvestmentKind {

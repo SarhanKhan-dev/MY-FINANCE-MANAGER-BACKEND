@@ -30,6 +30,7 @@ const WALLET_OUT_TYPES: TransactionType[] = [
   TransactionType.REPAY_OUT,
   TransactionType.TAKEN,
   TransactionType.CHARITY,
+  TransactionType.SALARY,
 ];
 // Money that may move a wallet — or be a backfill record from before tracking
 // started (old loans, committee months already settled, holdings owned).
@@ -58,6 +59,7 @@ const PERSON_REQUIRED_TYPES: TransactionType[] = [
   TransactionType.TAKEN,
   TransactionType.WRITE_OFF,
   TransactionType.BALANCE_OUT,
+  TransactionType.SALARY,
 ];
 const CAP_TYPES: TransactionType[] = [
   TransactionType.EXPENSE,
@@ -153,6 +155,8 @@ export class TransactionsService {
       await this.guardDuplicates(userId, data);
     }
 
+    const forPersonIds = await this.validForPeople(userId, dto.forPersonIds);
+
     const created = await this.prisma.$transaction(async (tx) => {
       const { items, ...fields } = data;
       const transaction = await tx.transaction.create({
@@ -167,6 +171,9 @@ export class TransactionsService {
           committeeMonth: links?.committeeMonth ?? null,
           ...(items && items.length > 0
             ? { items: { create: items.map((item) => ({ ...item, userId })) } }
+            : {}),
+          ...(forPersonIds.length > 0
+            ? { forPeople: { create: forPersonIds.map((personId) => ({ personId })) } }
             : {}),
         },
         include: transactionInclude,
@@ -260,6 +267,11 @@ export class TransactionsService {
       })),
     });
 
+    const forPersonIds =
+      dto.forPersonIds !== undefined
+        ? await this.validForPeople(userId, dto.forPersonIds)
+        : undefined;
+
     const updated = await this.prisma.$transaction(async (tx) => {
       const { items, ...fields } = data;
       const transaction = await tx.transaction.update({
@@ -271,6 +283,14 @@ export class TransactionsService {
                 items: {
                   deleteMany: {},
                   create: items.map((item) => ({ ...item, userId })),
+                },
+              }
+            : {}),
+          ...(forPersonIds !== undefined
+            ? {
+                forPeople: {
+                  deleteMany: {},
+                  create: forPersonIds.map((personId) => ({ personId })),
                 },
               }
             : {}),
@@ -293,6 +313,17 @@ export class TransactionsService {
       await this.budget.checkAlerts(userId);
     }
     return updated;
+  }
+
+  /** Keeps only tags pointing at people this user actually owns, deduplicated. */
+  private async validForPeople(userId: string, ids?: string[]): Promise<string[]> {
+    if (!ids || ids.length === 0) return [];
+    const unique = [...new Set(ids)];
+    const people = await this.prisma.person.findMany({
+      where: { userId, id: { in: unique } },
+      select: { id: true },
+    });
+    return people.map((person) => person.id);
   }
 
   async remove(userId: string, id: string): Promise<void> {
@@ -420,7 +451,17 @@ export class TransactionsService {
     if (query.type) where.type = query.type;
     if (query.categoryId) where.categoryId = query.categoryId;
     if (query.merchantId) where.merchantId = query.merchantId;
-    if (query.personId) where.personId = query.personId;
+    if (query.personId) {
+      // Matches whether they are the counterparty or just tagged "for whom".
+      where.AND = [
+        {
+          OR: [
+            { personId: query.personId },
+            { forPeople: { some: { personId: query.personId } } },
+          ],
+        },
+      ];
+    }
     if (query.walletId) {
       where.OR = [{ fromWalletId: query.walletId }, { toWalletId: query.walletId }];
     }

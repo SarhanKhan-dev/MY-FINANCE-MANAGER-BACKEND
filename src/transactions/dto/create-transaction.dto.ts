@@ -3,6 +3,7 @@ import { Currency, TransactionType } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsEnum,
   IsNumber,
@@ -127,6 +128,15 @@ export class CreateTransactionDto {
   @IsOptional()
   @IsString()
   personId?: string;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Who this spending was for — tags only, no debt is created',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  forPersonIds?: string[];
 
   @ApiPropertyOptional({ description: 'Free-text source when the money came from no saved person' })
   @IsOptional()

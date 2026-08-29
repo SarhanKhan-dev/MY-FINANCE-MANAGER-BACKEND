@@ -6,6 +6,7 @@ export const transactionInclude = {
   category: { select: { id: true, name: true } },
   merchant: { select: { id: true, name: true } },
   person: { select: { id: true, name: true } },
+  forPeople: { select: { person: { select: { id: true, name: true } } } },
   items: {
     select: {
       id: true,
