@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Currency, Prisma, TransactionType, Wallet } from '@prisma/client';
 import { BudgetService } from '../budget/budget.service';
-import { parseDateOnly } from '../budget/cycle';
+import { parseDateOnly, pktToday } from '../budget/cycle';
 import { DebtsService } from '../debts/debts.service';
 import { EventTypes } from '../events/event-types';
 import { EventsService } from '../events/events.service';
@@ -23,12 +23,14 @@ const WALLET_IN_TYPES: TransactionType[] = [
   TransactionType.INCOME,
   TransactionType.BORROW,
   TransactionType.REPAY_IN,
+  TransactionType.INVESTMENT_OUT,
 ];
 const WALLET_OUT_TYPES: TransactionType[] = [
   TransactionType.EXPENSE,
   TransactionType.LEND,
   TransactionType.REPAY_OUT,
   TransactionType.TAKEN,
+  TransactionType.INVESTMENT_IN,
 ];
 const NO_WALLET_TYPES: TransactionType[] = [
   TransactionType.WORK_OFFSET,
@@ -90,7 +92,7 @@ export class TransactionsService {
     userId: string,
     dto: CreateTransactionDto,
     idempotencyKey?: string,
-    links?: { billId?: string; subscriptionId?: string },
+    links?: { billId?: string; subscriptionId?: string; investmentId?: string },
   ): Promise<TransactionWithRefs> {
     if (idempotencyKey) {
       const existing = await this.prisma.transaction.findUnique({
@@ -138,6 +140,7 @@ export class TransactionsService {
           idempotencyKey: idempotencyKey ?? null,
           billId: links?.billId ?? null,
           subscriptionId: links?.subscriptionId ?? null,
+          investmentId: links?.investmentId ?? null,
           ...(items && items.length > 0
             ? { items: { create: items.map((item) => ({ ...item, userId })) } }
             : {}),
@@ -280,6 +283,48 @@ export class TransactionsService {
         tx,
       });
     });
+  }
+
+  /** Calendar days in the range (up to yesterday, PKT) with zero entries (sec 55). */
+  async missingDays(userId: string, from?: string, to?: string): Promise<string[]> {
+    const first = await this.prisma.transaction.findFirst({
+      where: { userId },
+      orderBy: { date: 'asc' },
+      select: { date: true },
+    });
+    if (!first) return [];
+
+    const pktYesterday = new Date(pktToday().getTime() - DAY_MS);
+
+    let start = first.date;
+    if (from) {
+      const parsed = parseDateOnly(from);
+      if (parsed > start) start = parsed;
+    }
+    let end = pktYesterday;
+    if (to) {
+      const parsed = parseDateOnly(to);
+      if (parsed < end) end = parsed;
+    }
+    if (start > end) return [];
+
+    const rows = await this.prisma.transaction.findMany({
+      where: { userId, date: { gte: start, lte: end } },
+      select: { date: true },
+      distinct: ['date'],
+    });
+    const have = new Set(rows.map((row) => row.date.toISOString().slice(0, 10)));
+
+    const missing: string[] = [];
+    for (
+      let cursor = start.getTime();
+      cursor <= end.getTime() && missing.length < 62;
+      cursor += DAY_MS
+    ) {
+      const key = new Date(cursor).toISOString().slice(0, 10);
+      if (!have.has(key)) missing.push(key);
+    }
+    return missing;
   }
 
   async summary(userId: string, query: QueryTransactionsDto) {

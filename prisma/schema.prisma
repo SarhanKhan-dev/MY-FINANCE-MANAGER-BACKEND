@@ -55,6 +55,9 @@ model User {
   productCategories ProductCategory[]
   bills             Bill[]
   subscriptions     Subscription[]
+  investments       Investment[]
+  investmentSnaps   InvestmentSnapshot[]
+  goldHoldings      GoldHolding[]
   alertLogs         AlertLog[]
   events            EventLog[]
   passwordTokens    PasswordToken[]
@@ -86,6 +89,7 @@ model UserSettings {
   budgetCycleStartDay Int      @default(1)
   countLendingInCap   Boolean  @default(false)
   countWriteOffsInCap Boolean  @default(true)
+  goldRatePkrPerGram  Decimal? @db.Decimal(14, 2)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }
@@ -167,6 +171,8 @@ enum TransactionType {
   TAKEN
   WRITE_OFF
   BALANCE_OUT
+  INVESTMENT_IN
+  INVESTMENT_OUT
 }
 
 model Transaction {
@@ -196,6 +202,8 @@ model Transaction {
   bill           Bill?           @relation(fields: [billId], references: [id], onDelete: SetNull)
   subscriptionId String?
   subscription   Subscription?   @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  investmentId   String?
+  investment     Investment?     @relation(fields: [investmentId], references: [id], onDelete: SetNull)
   idempotencyKey String?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
@@ -207,6 +215,64 @@ model Transaction {
   @@index([userId, type, date])
   @@index([fromWalletId])
   @@index([toWalletId])
+}
+
+enum InvestmentKind {
+  STOCK
+  ACCOUNT
+  OTHER
+}
+
+model Investment {
+  id               String         @id @default(cuid())
+  userId           String
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name             String
+  kind             InvestmentKind
+  currency         Currency       @default(PKR)
+  units            Decimal?       @db.Decimal(16, 4)
+  currentUnitPrice Decimal?       @db.Decimal(14, 4)
+  costBasis        Decimal        @default(0) @db.Decimal(14, 2)
+  currentValue     Decimal        @default(0) @db.Decimal(14, 2)
+  realizedPnl      Decimal        @default(0) @db.Decimal(14, 2)
+  zakatable        Boolean        @default(false)
+  archivedAt       DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  snapshots    InvestmentSnapshot[]
+  transactions Transaction[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model InvestmentSnapshot {
+  id           String     @id @default(cuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  investmentId String
+  investment   Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+  date         DateTime
+  value        Decimal    @db.Decimal(14, 2)
+
+  @@unique([investmentId, date])
+  @@index([userId])
+}
+
+model GoldHolding {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  weightGrams   Decimal   @db.Decimal(10, 3)
+  purity        String?
+  boughtPricePkr Decimal  @db.Decimal(14, 2)
+  archivedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId])
 }
 
 enum RepeatRule {

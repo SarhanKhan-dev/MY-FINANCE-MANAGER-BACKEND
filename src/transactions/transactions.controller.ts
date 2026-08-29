@@ -53,6 +53,14 @@ export class TransactionsController {
     return this.transactionsService.summary(user.id, query);
   }
 
+  @Get('missing-days')
+  async missingDays(
+    @CurrentUser() user: SafeUser,
+    @Query() query: QueryTransactionsDto,
+  ): Promise<{ dates: string[] }> {
+    return { dates: await this.transactionsService.missingDays(user.id, query.from, query.to) };
+  }
+
   @Post()
   @ApiHeader({ name: 'idempotency-key', required: false })
   @ApiOkResponse({ type: TransactionDto })

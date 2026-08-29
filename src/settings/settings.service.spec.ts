@@ -25,6 +25,7 @@ describe('SettingsService', () => {
     budgetCycleStartDay: 1,
     countLendingInCap: false,
     countWriteOffsInCap: true,
+    goldRatePkrPerGram: null,
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
     ...overrides,

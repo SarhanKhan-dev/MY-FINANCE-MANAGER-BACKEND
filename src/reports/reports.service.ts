@@ -1,11 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { Currency, WalletKind } from '@prisma/client';
+import { Currency, TransactionType, WalletKind } from '@prisma/client';
 import { BudgetService, BudgetStatus } from '../budget/budget.service';
-import { pktToday } from '../budget/cycle';
+import { parseDateOnly, pktToday } from '../budget/cycle';
 import { DebtsService } from '../debts/debts.service';
 import { FxService } from '../fx/fx.service';
+import { GoldService } from '../gold/gold.service';
+import { InvestmentsService } from '../investments/investments.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { transactionInclude, TransactionWithRefs } from '../transactions/transaction-with-refs';
+import { TransactionsService } from '../transactions/transactions.service';
 import { WalletsService } from '../wallets/wallets.service';
 
 export interface OverviewWallet {
@@ -22,7 +25,14 @@ export interface OverviewTotals {
   banksPkr: number;
   mobilePkr: number;
   cashPkr: number;
+  investmentsPkr: number;
+  goldPkr: number | null;
   usdRate: number | null;
+}
+
+export interface CategoryLeader {
+  name: string;
+  spentPkr: number;
 }
 
 export interface UpcomingItem {
@@ -39,6 +49,8 @@ export interface Overview {
   wallets: OverviewWallet[];
   totals: OverviewTotals;
   debts: { iOwePkr: number; owedToMePkr: number };
+  categoryLeaders: CategoryLeader[];
+  missedDays: string[];
   upcoming: UpcomingItem[];
   recent: TransactionWithRefs[];
 }
@@ -51,21 +63,31 @@ export class ReportsService {
     private readonly wallets: WalletsService,
     private readonly fx: FxService,
     private readonly debts: DebtsService,
+    private readonly investments: InvestmentsService,
+    private readonly gold: GoldService,
+    private readonly transactions: TransactionsService,
   ) {}
 
   async overview(userId: string): Promise<Overview> {
-    const [budget, walletRows, usdRate, debtsSummary, upcoming, recent] = await Promise.all([
-      this.budget.current(userId),
-      this.wallets.list(userId),
-      this.fx.usdToPkrOrNull(),
-      this.debts.summary(userId),
-      this.upcoming(userId),
-      this.prisma.transaction.findMany({
-        where: { userId },
-        include: transactionInclude,
-        orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
-        take: 10,
-      }),
+    const [budget, walletRows, usdRate, debtsSummary, upcoming, portfolio, goldPkr, recent] =
+      await Promise.all([
+        this.budget.current(userId),
+        this.wallets.list(userId),
+        this.fx.usdToPkrOrNull(),
+        this.debts.summary(userId),
+        this.upcoming(userId),
+        this.investments.list(userId),
+        this.gold.valuePkr(userId),
+        this.prisma.transaction.findMany({
+          where: { userId },
+          include: transactionInclude,
+          orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+          take: 10,
+        }),
+      ]);
+    const [categoryLeaders, missedDays] = await Promise.all([
+      this.categoryLeaders(userId, budget.cycleStart, budget.cycleEnd),
+      this.transactions.missingDays(userId, budget.cycleStart),
     ]);
 
     const active = walletRows.filter(({ wallet }) => !wallet.archivedAt);
@@ -94,6 +116,12 @@ export class ReportsService {
       if (wallet.kind === WalletKind.CASH) cash += pkrValue;
     }
 
+    const investmentsPkr = portfolio.summary.valuePkr;
+    if (netWorth !== null) {
+      netWorth += investmentsPkr;
+      if (goldPkr !== null) netWorth += goldPkr;
+    }
+
     const round = (value: number) => Math.round(value * 100) / 100;
     return {
       budget,
@@ -110,12 +138,52 @@ export class ReportsService {
         banksPkr: round(banks),
         mobilePkr: round(mobile),
         cashPkr: round(cash),
+        investmentsPkr: round(investmentsPkr),
+        goldPkr,
         usdRate,
       },
       debts: { iOwePkr: debtsSummary.iOwePkr, owedToMePkr: debtsSummary.owedToMePkr },
+      categoryLeaders,
+      missedDays,
       upcoming,
       recent,
     };
+  }
+
+  /** Top-5 spend categories in the current cycle (sec 54). */
+  private async categoryLeaders(
+    userId: string,
+    cycleStart: string,
+    cycleEnd: string,
+  ): Promise<CategoryLeader[]> {
+    const rows = await this.prisma.transaction.findMany({
+      where: {
+        userId,
+        type: TransactionType.EXPENSE,
+        date: { gte: parseDateOnly(cycleStart), lt: parseDateOnly(cycleEnd) },
+      },
+      select: {
+        amount: true,
+        currency: true,
+        fxRate: true,
+        category: { select: { name: true } },
+      },
+    });
+    const totals = new Map<string, number>();
+    for (const row of rows) {
+      const pkr =
+        row.currency === Currency.PKR
+          ? Number(row.amount)
+          : row.fxRate
+            ? Number(row.amount) * Number(row.fxRate)
+            : 0;
+      const name = row.category?.name ?? 'Uncategorized';
+      totals.set(name, (totals.get(name) ?? 0) + pkr);
+    }
+    return Array.from(totals.entries())
+      .map(([name, spentPkr]) => ({ name, spentPkr: Math.round(spentPkr * 100) / 100 }))
+      .sort((a, b) => b.spentPkr - a.spentPkr)
+      .slice(0, 5);
   }
 
   /** Bills and renewals due in the next 7 days, overdue first (sec 39 #8). */

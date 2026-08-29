@@ -12,6 +12,8 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { EventsModule } from './events/events.module';
 import { FxModule } from './fx/fx.module';
+import { GoldModule } from './gold/gold.module';
+import { InvestmentsModule } from './investments/investments.module';
 import { MerchantsModule } from './merchants/merchants.module';
 import { PeopleModule } from './people/people.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -42,6 +44,8 @@ import { WalletsModule } from './wallets/wallets.module';
     ProductsModule,
     BillsModule,
     SubscriptionsModule,
+    InvestmentsModule,
+    GoldModule,
     ReportsModule,
   ],
   controllers: [AppController],

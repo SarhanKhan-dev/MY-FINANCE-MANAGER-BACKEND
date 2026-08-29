@@ -21,7 +21,14 @@ class OverviewTotalsDto {
   @ApiProperty() banksPkr: number;
   @ApiProperty() mobilePkr: number;
   @ApiProperty() cashPkr: number;
+  @ApiProperty() investmentsPkr: number;
+  @ApiProperty({ type: Number, nullable: true }) goldPkr: number | null;
   @ApiProperty({ type: Number, nullable: true }) usdRate: number | null;
+}
+
+class CategoryLeaderDto {
+  @ApiProperty() name: string;
+  @ApiProperty() spentPkr: number;
 }
 
 class OverviewDebtsDto {
@@ -43,6 +50,9 @@ class OverviewDto {
   @ApiProperty({ type: OverviewWalletDto, isArray: true }) wallets: OverviewWalletDto[];
   @ApiProperty({ type: OverviewTotalsDto }) totals: OverviewTotalsDto;
   @ApiProperty({ type: OverviewDebtsDto }) debts: OverviewDebtsDto;
+  @ApiProperty({ type: CategoryLeaderDto, isArray: true })
+  categoryLeaders: CategoryLeaderDto[];
+  @ApiProperty({ type: String, isArray: true }) missedDays: string[];
   @ApiProperty({ type: UpcomingItemDto, isArray: true }) upcoming: UpcomingItemDto[];
   @ApiProperty({ type: TransactionDto, isArray: true }) recent: TransactionDto[];
 }
@@ -62,6 +72,8 @@ export class ReportsController {
       wallets: overview.wallets,
       totals: overview.totals,
       debts: overview.debts,
+      categoryLeaders: overview.categoryLeaders,
+      missedDays: overview.missedDays,
       upcoming: overview.upcoming,
       recent: overview.recent.map(TransactionDto.from),
     };
