@@ -1,0 +1,13 @@
+import { Prisma } from '@prisma/client';
+
+export const transactionInclude = {
+  fromWallet: { select: { id: true, name: true, currency: true } },
+  toWallet: { select: { id: true, name: true, currency: true } },
+  category: { select: { id: true, name: true } },
+  merchant: { select: { id: true, name: true } },
+  person: { select: { id: true, name: true } },
+} satisfies Prisma.TransactionInclude;
+
+export type TransactionWithRefs = Prisma.TransactionGetPayload<{
+  include: typeof transactionInclude;
+}>;

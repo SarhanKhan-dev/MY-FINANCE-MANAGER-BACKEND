@@ -1,0 +1,51 @@
+import { Controller, Get } from '@nestjs/common';
+import { ApiBearerAuth, ApiOkResponse, ApiProperty, ApiTags } from '@nestjs/swagger';
+import { Currency, WalletKind } from '@prisma/client';
+import { BudgetStatusDto } from '../budget/budget.controller';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { SafeUser } from '../common/types/safe-user';
+import { TransactionDto } from '../transactions/dto/transaction.dto';
+import { ReportsService } from './reports.service';
+
+class OverviewWalletDto {
+  @ApiProperty() id: string;
+  @ApiProperty() name: string;
+  @ApiProperty({ enum: WalletKind }) kind: WalletKind;
+  @ApiProperty({ enum: Currency }) currency: Currency;
+  @ApiProperty({ type: String }) balance: string;
+  @ApiProperty() archived: boolean;
+}
+
+class OverviewTotalsDto {
+  @ApiProperty({ type: Number, nullable: true }) netWorthPkr: number | null;
+  @ApiProperty() banksPkr: number;
+  @ApiProperty() mobilePkr: number;
+  @ApiProperty() cashPkr: number;
+  @ApiProperty({ type: Number, nullable: true }) usdRate: number | null;
+}
+
+class OverviewDto {
+  @ApiProperty({ type: BudgetStatusDto }) budget: BudgetStatusDto;
+  @ApiProperty({ type: OverviewWalletDto, isArray: true }) wallets: OverviewWalletDto[];
+  @ApiProperty({ type: OverviewTotalsDto }) totals: OverviewTotalsDto;
+  @ApiProperty({ type: TransactionDto, isArray: true }) recent: TransactionDto[];
+}
+
+@ApiTags('reports')
+@ApiBearerAuth()
+@Controller('reports')
+export class ReportsController {
+  constructor(private readonly reportsService: ReportsService) {}
+
+  @Get('overview')
+  @ApiOkResponse({ type: OverviewDto })
+  async overview(@CurrentUser() user: SafeUser): Promise<OverviewDto> {
+    const overview = await this.reportsService.overview(user.id);
+    return {
+      budget: overview.budget,
+      wallets: overview.wallets,
+      totals: overview.totals,
+      recent: overview.recent.map(TransactionDto.from),
+    };
+  }
+}

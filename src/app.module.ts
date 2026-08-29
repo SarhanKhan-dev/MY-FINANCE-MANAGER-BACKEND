@@ -3,13 +3,21 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AuthModule } from './auth/auth.module';
+import { BudgetModule } from './budget/budget.module';
+import { CategoriesModule } from './categories/categories.module';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { EventsModule } from './events/events.module';
+import { FxModule } from './fx/fx.module';
+import { MerchantsModule } from './merchants/merchants.module';
+import { PeopleModule } from './people/people.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ReportsModule } from './reports/reports.module';
 import { SettingsModule } from './settings/settings.module';
+import { TransactionsModule } from './transactions/transactions.module';
 import { UsersModule } from './users/users.module';
+import { WalletsModule } from './wallets/wallets.module';
 
 @Module({
   imports: [
@@ -19,6 +27,14 @@ import { UsersModule } from './users/users.module';
     AuthModule,
     UsersModule,
     SettingsModule,
+    WalletsModule,
+    CategoriesModule,
+    MerchantsModule,
+    PeopleModule,
+    TransactionsModule,
+    BudgetModule,
+    FxModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [

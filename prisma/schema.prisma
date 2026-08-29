@@ -47,6 +47,10 @@ model User {
   settings       UserSettings?
   wallets        Wallet[]
   categories     Category[]
+  merchants      Merchant[]
+  people         Person[]
+  transactions   Transaction[]
+  alertLogs      AlertLog[]
   events         EventLog[]
   passwordTokens PasswordToken[]
 }
@@ -90,6 +94,9 @@ model Wallet {
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
 
+  outgoing Transaction[] @relation("fromWallet")
+  incoming Transaction[] @relation("toWallet")
+
   @@index([userId])
 }
 
@@ -102,8 +109,94 @@ model Category {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
+  transactions Transaction[]
+
   @@unique([userId, name])
   @@index([userId])
+}
+
+model Merchant {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  archivedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  transactions Transaction[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model Person {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  phone      String?
+  note       String?
+  archivedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  transactions Transaction[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+enum TransactionType {
+  EXPENSE
+  INCOME
+  TRANSFER
+  CONVERSION
+}
+
+model Transaction {
+  id             String          @id @default(cuid())
+  userId         String
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type           TransactionType
+  date           DateTime
+  amount         Decimal         @db.Decimal(14, 2)
+  currency       Currency
+  fxRate         Decimal?        @db.Decimal(12, 6)
+  toAmount       Decimal?        @db.Decimal(14, 2)
+  fromWalletId   String?
+  fromWallet     Wallet?         @relation("fromWallet", fields: [fromWalletId], references: [id], onDelete: Restrict)
+  toWalletId     String?
+  toWallet       Wallet?         @relation("toWallet", fields: [toWalletId], references: [id], onDelete: Restrict)
+  categoryId     String?
+  category       Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  merchantId     String?
+  merchant       Merchant?       @relation(fields: [merchantId], references: [id], onDelete: SetNull)
+  personId       String?
+  person         Person?         @relation(fields: [personId], references: [id], onDelete: SetNull)
+  incomeSource   String?
+  incomeType     String?
+  note           String?
+  idempotencyKey String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, date])
+  @@index([userId, type, date])
+  @@index([fromWalletId])
+  @@index([toWalletId])
+}
+
+model AlertLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cycleKey  String
+  threshold Int
+  createdAt DateTime @default(now())
+
+  @@unique([userId, cycleKey, threshold])
 }
 
 model EventLog {
