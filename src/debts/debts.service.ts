@@ -11,6 +11,7 @@ export const DEBT_TYPES: TransactionType[] = [
   TransactionType.TAKEN,
   TransactionType.WRITE_OFF,
   TransactionType.BALANCE_OUT,
+  TransactionType.COMMITTEE_PAY,
 ];
 
 export interface PersonPosition {
@@ -36,7 +37,14 @@ export class DebtsService {
   async positions(userId: string): Promise<Map<string, PersonPosition>> {
     const rows = await this.prisma.transaction.findMany({
       where: { userId, type: { in: DEBT_TYPES }, personId: { not: null } },
-      select: { personId: true, type: true, amount: true, currency: true, fxRate: true },
+      select: {
+        personId: true,
+        type: true,
+        amount: true,
+        currency: true,
+        fxRate: true,
+        fromWalletId: true,
+      },
     });
 
     const positions = new Map<string, PersonPosition>();
@@ -72,6 +80,13 @@ export class DebtsService {
         case TransactionType.BALANCE_OUT:
           position.iOwePkr -= pkr;
           position.owedToMePkr -= pkr;
+          break;
+        case TransactionType.COMMITTEE_PAY:
+          // Paid through the ledger (no wallet): the organizer kept my installment
+          // out of what they owed me (sec 15).
+          if (!row.fromWalletId) {
+            position.owedToMePkr -= pkr;
+          }
           break;
         default:
           break;

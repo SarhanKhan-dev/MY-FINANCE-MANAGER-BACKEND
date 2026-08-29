@@ -10,6 +10,7 @@ export class SettingsDto {
 
   @ApiProperty() countLendingInCap: boolean;
   @ApiProperty() countWriteOffsInCap: boolean;
+  @ApiProperty() countCommitteesInCap: boolean;
 
   @ApiProperty({ type: String, format: 'date-time' })
   updatedAt: Date;
@@ -20,6 +21,7 @@ export class SettingsDto {
     dto.budgetCycleStartDay = settings.budgetCycleStartDay;
     dto.countLendingInCap = settings.countLendingInCap;
     dto.countWriteOffsInCap = settings.countWriteOffsInCap;
+    dto.countCommitteesInCap = settings.countCommitteesInCap;
     dto.updatedAt = settings.updatedAt;
     return dto;
   }

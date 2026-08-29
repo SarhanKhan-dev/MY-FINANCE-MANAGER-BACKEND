@@ -19,6 +19,7 @@ describe('BudgetService', () => {
     budgetCycleStartDay: 1,
     countLendingInCap: false,
     countWriteOffsInCap: true,
+    countCommitteesInCap: false,
   };
 
   beforeEach(() => {

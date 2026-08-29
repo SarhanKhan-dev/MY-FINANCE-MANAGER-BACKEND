@@ -25,4 +25,9 @@ export class UpdateSettingsDto {
   @IsOptional()
   @IsBoolean()
   countWriteOffsInCap?: boolean;
+
+  @ApiPropertyOptional({ description: 'Count committee installments toward the cap' })
+  @IsOptional()
+  @IsBoolean()
+  countCommitteesInCap?: boolean;
 }

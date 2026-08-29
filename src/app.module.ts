@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module';
 import { BillsModule } from './bills/bills.module';
 import { BudgetModule } from './budget/budget.module';
 import { CategoriesModule } from './categories/categories.module';
+import { CommitteesModule } from './committees/committees.module';
 import { DebtsModule } from './debts/debts.module';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
@@ -46,6 +47,7 @@ import { WalletsModule } from './wallets/wallets.module';
     SubscriptionsModule,
     InvestmentsModule,
     GoldModule,
+    CommitteesModule,
     ReportsModule,
   ],
   controllers: [AppController],

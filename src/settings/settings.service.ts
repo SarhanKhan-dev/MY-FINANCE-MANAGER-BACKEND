@@ -30,6 +30,7 @@ export class SettingsService {
         budgetCycleStartDay: dto.budgetCycleStartDay,
         countLendingInCap: dto.countLendingInCap,
         countWriteOffsInCap: dto.countWriteOffsInCap,
+        countCommitteesInCap: dto.countCommitteesInCap,
       },
     });
 

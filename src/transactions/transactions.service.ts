@@ -24,6 +24,7 @@ const WALLET_IN_TYPES: TransactionType[] = [
   TransactionType.BORROW,
   TransactionType.REPAY_IN,
   TransactionType.INVESTMENT_OUT,
+  TransactionType.COMMITTEE_PAYOUT,
 ];
 const WALLET_OUT_TYPES: TransactionType[] = [
   TransactionType.EXPENSE,
@@ -46,11 +47,14 @@ const PERSON_REQUIRED_TYPES: TransactionType[] = [
   TransactionType.TAKEN,
   TransactionType.WRITE_OFF,
   TransactionType.BALANCE_OUT,
+  TransactionType.COMMITTEE_PAY,
+  TransactionType.COMMITTEE_PAYOUT,
 ];
 const CAP_TYPES: TransactionType[] = [
   TransactionType.EXPENSE,
   TransactionType.LEND,
   TransactionType.TAKEN,
+  TransactionType.COMMITTEE_PAY,
 ];
 
 interface NormalizedItem {
@@ -92,7 +96,13 @@ export class TransactionsService {
     userId: string,
     dto: CreateTransactionDto,
     idempotencyKey?: string,
-    links?: { billId?: string; subscriptionId?: string; investmentId?: string },
+    links?: {
+      billId?: string;
+      subscriptionId?: string;
+      investmentId?: string;
+      committeeId?: string;
+      committeeMonth?: Date;
+    },
   ): Promise<TransactionWithRefs> {
     if (idempotencyKey) {
       const existing = await this.prisma.transaction.findUnique({
@@ -141,6 +151,8 @@ export class TransactionsService {
           billId: links?.billId ?? null,
           subscriptionId: links?.subscriptionId ?? null,
           investmentId: links?.investmentId ?? null,
+          committeeId: links?.committeeId ?? null,
+          committeeMonth: links?.committeeMonth ?? null,
           ...(items && items.length > 0
             ? { items: { create: items.map((item) => ({ ...item, userId })) } }
             : {}),
@@ -331,7 +343,7 @@ export class TransactionsService {
     const where = this.buildWhere(userId, query);
     const rows = await this.prisma.transaction.findMany({
       where,
-      select: { type: true, amount: true, currency: true, fxRate: true },
+      select: { type: true, amount: true, currency: true, fxRate: true, fromWalletId: true },
     });
 
     let spent = 0;
@@ -340,7 +352,10 @@ export class TransactionsService {
     for (const row of rows) {
       const pkr = this.toPkr(row.amount, row.currency, row.fxRate);
       if (pkr === null) continue;
-      if (WALLET_OUT_TYPES.includes(row.type)) {
+      const isOut =
+        WALLET_OUT_TYPES.includes(row.type) ||
+        (row.type === TransactionType.COMMITTEE_PAY && row.fromWalletId !== null);
+      if (isOut) {
         spent += pkr;
         if (biggest === null || pkr > biggest) biggest = pkr;
       }
@@ -472,6 +487,16 @@ export class TransactionsService {
       data.fromWalletId = null;
       data.toWalletId = null;
       data.toAmount = null;
+    } else if (data.type === TransactionType.COMMITTEE_PAY) {
+      // Cash from a wallet, or settled against what the organizer owes (sec 15).
+      if (fromWallet) {
+        if (data.currency !== fromWallet.currency) {
+          throw new BadRequestException('Amount currency must match the wallet');
+        }
+      }
+      requireUsdRate();
+      data.toWalletId = null;
+      data.toAmount = null;
     }
 
     if (PERSON_REQUIRED_TYPES.includes(data.type) && !data.personId) {
@@ -552,6 +577,7 @@ export class TransactionsService {
       TransactionType.WORK_OFFSET,
       TransactionType.WRITE_OFF,
       TransactionType.BALANCE_OUT,
+      TransactionType.COMMITTEE_PAY,
     ];
     if (!needsPosition.includes(data.type) || !data.personId) return;
 
@@ -584,6 +610,11 @@ export class TransactionsService {
         }
         break;
       }
+      case TransactionType.COMMITTEE_PAY:
+        if (data.fromWalletId === null && pkr > position.owedToMePkr + epsilon) {
+          throw new BadRequestException('Only up to what they owe you');
+        }
+        break;
       default:
         break;
     }

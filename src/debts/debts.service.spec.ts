@@ -16,12 +16,14 @@ describe('DebtsService', () => {
     personId = 'p1',
     currency: Currency = Currency.PKR,
     fxRate: number | null = null,
+    fromWalletId: string | null = null,
   ) => ({
     personId,
     type,
     amount: new Prisma.Decimal(amount),
     currency,
     fxRate: fxRate ? new Prisma.Decimal(fxRate) : null,
+    fromWalletId,
   });
 
   beforeEach(() => {
@@ -100,6 +102,28 @@ describe('DebtsService', () => {
 
     expect(position.iOwePkr).toBe(0);
     expect(position.owedToMePkr).toBe(10);
+  });
+
+  it('a ledger-settled committee installment reduces what they owe you (sec 15)', async () => {
+    prisma.transaction.findMany.mockResolvedValue([
+      entry(TransactionType.LEND, 8000),
+      entry(TransactionType.COMMITTEE_PAY, 5000),
+    ]);
+
+    const position = await service.positionFor('u1', 'p1');
+
+    expect(position.owedToMePkr).toBe(3000);
+  });
+
+  it('a cash committee installment leaves the ledger alone', async () => {
+    prisma.transaction.findMany.mockResolvedValue([
+      entry(TransactionType.LEND, 8000),
+      entry(TransactionType.COMMITTEE_PAY, 5000, 'p1', Currency.PKR, null, 'wallet1'),
+    ]);
+
+    const position = await service.positionFor('u1', 'p1');
+
+    expect(position.owedToMePkr).toBe(8000);
   });
 
   it('converts USD debt entries at their stored rate', async () => {

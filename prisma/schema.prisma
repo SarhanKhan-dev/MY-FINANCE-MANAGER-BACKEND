@@ -58,6 +58,7 @@ model User {
   investments       Investment[]
   investmentSnaps   InvestmentSnapshot[]
   goldHoldings      GoldHolding[]
+  committees        Committee[]
   alertLogs         AlertLog[]
   events            EventLog[]
   passwordTokens    PasswordToken[]
@@ -89,6 +90,7 @@ model UserSettings {
   budgetCycleStartDay Int      @default(1)
   countLendingInCap   Boolean  @default(false)
   countWriteOffsInCap Boolean  @default(true)
+  countCommitteesInCap Boolean @default(false)
   goldRatePkrPerGram  Decimal? @db.Decimal(14, 2)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
@@ -152,9 +154,31 @@ model Person {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  transactions Transaction[]
+  transactions        Transaction[]
+  organizedCommittees Committee[]
 
   @@unique([userId, name])
+  @@index([userId])
+}
+
+model Committee {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  organizerId    String
+  organizer      Person    @relation(fields: [organizerId], references: [id], onDelete: Restrict)
+  installmentPkr Decimal   @db.Decimal(14, 2)
+  totalMembers   Int
+  potPkr         Decimal   @db.Decimal(14, 2)
+  startMonth     DateTime
+  myTurn         Int
+  archivedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  transactions Transaction[]
+
   @@index([userId])
 }
 
@@ -173,6 +197,8 @@ enum TransactionType {
   BALANCE_OUT
   INVESTMENT_IN
   INVESTMENT_OUT
+  COMMITTEE_PAY
+  COMMITTEE_PAYOUT
 }
 
 model Transaction {
@@ -204,6 +230,9 @@ model Transaction {
   subscription   Subscription?   @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
   investmentId   String?
   investment     Investment?     @relation(fields: [investmentId], references: [id], onDelete: SetNull)
+  committeeId    String?
+  committee      Committee?      @relation(fields: [committeeId], references: [id], onDelete: SetNull)
+  committeeMonth DateTime?
   idempotencyKey String?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
