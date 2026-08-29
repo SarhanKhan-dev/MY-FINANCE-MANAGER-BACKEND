@@ -49,7 +49,10 @@ try {
 
     foreach ($environment in $Environments) {
       cmd /c "npx vercel env rm $name $environment --yes <nul >nul 2>nul"
-      cmd /c "npx vercel env add $name $environment < `"$tempFile`"" | Out-Null
+      # --type config: the default Secret type is not attached to git-triggered builds,
+      # which boots those deployments without any env (observed: CORS fell back to
+      # localhost and Prisma lost DATABASE_URL until a manual `vercel redeploy`).
+      cmd /c "npx vercel env add $name $environment --type config < `"$tempFile`"" | Out-Null
       if ($LASTEXITCODE -eq 0) {
         Write-Host "set $name ($environment)"
       } else {
