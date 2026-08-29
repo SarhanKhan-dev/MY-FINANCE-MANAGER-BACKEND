@@ -1,7 +1,11 @@
 import { PrismaClient, Role } from '@prisma/client';
 import { hash } from 'bcryptjs';
 import { randomInt } from 'crypto';
-import { seedProductCatalog, seedUserDefaults } from '../src/users/user-defaults';
+import {
+  ensureDefaultCategories,
+  seedProductCatalog,
+  seedUserDefaults,
+} from '../src/users/user-defaults';
 
 const prisma = new PrismaClient();
 
@@ -78,11 +82,15 @@ async function main(): Promise<void> {
     await createAccount(account);
   }
 
-  // Backfill: every existing account gets the default product catalog (duplicates skipped).
+  // Backfill: every existing account gets the default product catalog and any
+  // newly added spending categories (duplicates skipped).
   const users = await prisma.user.findMany({ select: { id: true, username: true } });
   for (const user of users) {
-    await prisma.$transaction((tx) => seedProductCatalog(tx, user.id));
-    console.log(`product catalog ensured for ${user.username}`);
+    await prisma.$transaction(async (tx) => {
+      await seedProductCatalog(tx, user.id);
+      await ensureDefaultCategories(tx, user.id);
+    });
+    console.log(`catalog and categories ensured for ${user.username}`);
   }
 }
 

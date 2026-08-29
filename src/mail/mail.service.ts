@@ -53,7 +53,7 @@ export class MailService {
     const note =
       purpose === 'invite'
         ? 'Your account is ready. Click below to choose a password.'
-        : 'Click below to choose a new password. The link works once and expires in 24 hours.';
+        : 'Click below to choose a new password. The link works once and expires in 5 minutes.';
     return this.send(
       to,
       `PAIS-ë: ${heading}`,

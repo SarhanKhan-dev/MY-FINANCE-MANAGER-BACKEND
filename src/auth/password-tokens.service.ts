@@ -5,7 +5,8 @@ import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const RESET_TTL_MS = 24 * 60 * 60 * 1000;
+// Reset links die fast (owner's call): 5 minutes.
+const RESET_TTL_MS = 5 * 60 * 1000;
 
 @Injectable()
 export class PasswordTokensService {

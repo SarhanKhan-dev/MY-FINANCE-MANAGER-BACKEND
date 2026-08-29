@@ -14,6 +14,7 @@ export const DEFAULT_CATEGORIES = [
   'Grocery',
   'Transport',
   'Health',
+  'Personal care',
   'Utilities',
   'Shopping',
   'Staff salaries',
@@ -22,6 +23,19 @@ export const DEFAULT_CATEGORIES = [
   'Written off',
   'Other',
 ];
+
+/** Idempotent: adds any default spending category the user doesn't have yet. */
+export async function ensureDefaultCategories(
+  tx: Prisma.TransactionClient,
+  userId: string,
+): Promise<void> {
+  const existing = await tx.category.findMany({ where: { userId }, select: { name: true } });
+  const have = new Set(existing.map((category) => category.name.toLowerCase()));
+  const missing = DEFAULT_CATEGORIES.filter((name) => !have.has(name.toLowerCase()));
+  if (missing.length > 0) {
+    await tx.category.createMany({ data: missing.map((name) => ({ name, userId })) });
+  }
+}
 
 /** Everyday Pakistani household catalog: product category -> products with their usual unit. */
 export const DEFAULT_PRODUCT_CATALOG: Record<string, { name: string; unit: string }[]> = {
@@ -84,6 +98,11 @@ export const DEFAULT_PRODUCT_CATALOG: Record<string, { name: string; unit: strin
     { name: 'Salt', unit: 'kg' },
     { name: 'Cooking oil', unit: 'litre' },
     { name: 'Ghee', unit: 'kg' },
+    { name: 'Desi ghee', unit: 'kg' },
+    { name: 'Banaspati ghee', unit: 'kg' },
+    { name: 'Olive oil', unit: 'bottle' },
+    { name: 'Mustard oil (Sarson)', unit: 'litre' },
+    { name: 'Coconut oil', unit: 'bottle' },
     { name: 'Daal Chana', unit: 'kg' },
     { name: 'Daal Masoor', unit: 'kg' },
     { name: 'Daal Moong', unit: 'kg' },
@@ -156,6 +175,33 @@ export const DEFAULT_PRODUCT_CATALOG: Record<string, { name: string; unit: strin
     { name: 'Razor', unit: 'piece' },
     { name: 'Tissue box', unit: 'piece' },
     { name: 'Toilet paper', unit: 'packet' },
+    { name: 'Haircut (barber)', unit: 'visit' },
+    { name: 'Shave (barber)', unit: 'visit' },
+    { name: 'Salon visit', unit: 'visit' },
+    { name: 'Facial', unit: 'visit' },
+    { name: 'Hair colour', unit: 'visit' },
+    { name: 'Hair oil', unit: 'bottle' },
+    { name: 'Hair gel', unit: 'piece' },
+    { name: 'Perfume', unit: 'bottle' },
+    { name: 'Deodorant', unit: 'piece' },
+  ],
+  'Vehicle & Fuel': [
+    { name: 'Petrol', unit: 'litre' },
+    { name: 'Diesel', unit: 'litre' },
+    { name: 'CNG', unit: 'kg' },
+    { name: 'Engine oil', unit: 'litre' },
+    { name: 'Oil change', unit: 'visit' },
+    { name: 'Bike tuning', unit: 'visit' },
+    { name: 'Car service', unit: 'visit' },
+    { name: 'Car wash', unit: 'visit' },
+    { name: 'Puncture repair', unit: 'visit' },
+    { name: 'Tyre', unit: 'piece' },
+    { name: 'Air filter', unit: 'piece' },
+    { name: 'Spark plug', unit: 'piece' },
+    { name: 'Brake pads', unit: 'piece' },
+    { name: 'Vehicle battery', unit: 'piece' },
+    { name: 'Toll', unit: 'trip' },
+    { name: 'Parking', unit: 'trip' },
   ],
   Household: [
     { name: 'Matchbox', unit: 'piece' },

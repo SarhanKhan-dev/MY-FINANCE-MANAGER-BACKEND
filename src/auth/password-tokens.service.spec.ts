@@ -50,6 +50,16 @@ describe('PasswordTokensService', () => {
       const resetExpiry = prisma.passwordToken.create.mock.calls[1][0].data.expiresAt;
       expect(resetExpiry.getTime()).toBeLessThan(inviteExpiry.getTime());
     });
+
+    it('kills reset links after exactly five minutes', async () => {
+      const before = Date.now();
+      await service.issue('u1', PasswordTokenPurpose.RESET);
+      const after = Date.now();
+
+      const expiry = prisma.passwordToken.create.mock.calls[0][0].data.expiresAt.getTime();
+      expect(expiry).toBeGreaterThanOrEqual(before + 5 * 60 * 1000);
+      expect(expiry).toBeLessThanOrEqual(after + 5 * 60 * 1000);
+    });
   });
 
   describe('consume', () => {
