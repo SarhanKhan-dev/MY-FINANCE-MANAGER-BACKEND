@@ -150,7 +150,11 @@ export class ReportsService {
     };
   }
 
-  /** Top-5 spend categories in the current cycle (sec 54). */
+  /**
+   * Top-5 spend categories in the current cycle (sec 54). Itemized trips are
+   * split line by line onto each product's group — one receipt at one shop can
+   * feed many categories; only the uncovered remainder stays on the header.
+   */
   private async categoryLeaders(
     userId: string,
     cycleStart: string,
@@ -167,18 +171,37 @@ export class ReportsService {
         currency: true,
         fxRate: true,
         category: { select: { name: true } },
+        items: {
+          select: {
+            lineTotal: true,
+            product: { select: { productCategory: { select: { name: true } } } },
+          },
+        },
       },
     });
     const totals = new Map<string, number>();
-    for (const row of rows) {
-      const pkr =
-        row.currency === Currency.PKR
-          ? Number(row.amount)
-          : row.fxRate
-            ? Number(row.amount) * Number(row.fxRate)
-            : 0;
-      const name = row.category?.name ?? 'Uncategorized';
+    const add = (name: string, pkr: number) => {
+      if (pkr === 0) return;
       totals.set(name, (totals.get(name) ?? 0) + pkr);
+    };
+    for (const row of rows) {
+      const factor =
+        row.currency === Currency.PKR ? 1 : row.fxRate ? Number(row.fxRate) : 0;
+      const headerName = row.category?.name ?? 'Uncategorized';
+      if (row.items.length === 0) {
+        add(headerName, Number(row.amount) * factor);
+        continue;
+      }
+      let covered = 0;
+      for (const item of row.items) {
+        const line = Number(item.lineTotal);
+        covered += line;
+        add(item.product?.productCategory?.name ?? headerName, line * factor);
+      }
+      const remainder = Number(row.amount) - covered;
+      if (Math.abs(remainder) > 0.009) {
+        add(headerName, remainder * factor);
+      }
     }
     return Array.from(totals.entries())
       .map(([name, spentPkr]) => ({ name, spentPkr: Math.round(spentPkr * 100) / 100 }))
