@@ -15,10 +15,15 @@ import { TransactionsService } from '../transactions/transactions.service';
 const round2 = (value: number) => Math.round(value * 100) / 100;
 const round4 = (value: number) => Math.round(value * 10000) / 10000;
 
+/** Stocks and mutual funds are unit-based (shares / fund units at a NAV price). */
+const usesUnits = (kind: InvestmentKind) =>
+  kind === InvestmentKind.STOCK || kind === InvestmentKind.FUND;
+
 export interface HoldingView {
   id: string;
   name: string;
   kind: InvestmentKind;
+  provider: string | null;
   currency: Currency;
   units: number | null;
   currentUnitPrice: number | null;
@@ -61,6 +66,7 @@ export class InvestmentsService {
       id: investment.id,
       name: investment.name,
       kind: investment.kind,
+      provider: investment.provider,
       currency: investment.currency,
       units: investment.units ? Number(investment.units) : null,
       currentUnitPrice: investment.currentUnitPrice
@@ -145,7 +151,13 @@ export class InvestmentsService {
 
   async create(
     userId: string,
-    input: { name: string; kind: InvestmentKind; currency?: Currency; zakatable?: boolean },
+    input: {
+      name: string;
+      kind: InvestmentKind;
+      provider?: string;
+      currency?: Currency;
+      zakatable?: boolean;
+    },
   ): Promise<Investment> {
     const existing = await this.prisma.investment.findFirst({
       where: { userId, name: { equals: input.name, mode: 'insensitive' } },
@@ -158,9 +170,10 @@ export class InvestmentsService {
         userId,
         name: input.name,
         kind: input.kind,
+        provider: input.provider?.trim() || null,
         currency: input.currency ?? Currency.PKR,
         zakatable: input.zakatable ?? false,
-        units: input.kind === InvestmentKind.STOCK ? 0 : null,
+        units: usesUnits(input.kind) ? 0 : null,
       },
     });
     await this.events.record({
@@ -186,7 +199,7 @@ export class InvestmentsService {
     },
   ): Promise<Investment> {
     const investment = await this.activeOrFail(userId, investmentId);
-    const isStock = investment.kind === InvestmentKind.STOCK;
+    const isStock = usesUnits(investment.kind);
 
     let amount = input.amount;
     if (isStock) {
@@ -247,7 +260,7 @@ export class InvestmentsService {
     },
   ): Promise<{ investment: Investment; realized: number }> {
     const investment = await this.activeOrFail(userId, investmentId);
-    const isStock = investment.kind === InvestmentKind.STOCK;
+    const isStock = usesUnits(investment.kind);
     const date = input.date ?? toDateKey(pktToday());
 
     let proceeds: number;
@@ -331,7 +344,7 @@ export class InvestmentsService {
     input: { value?: number; unitPrice?: number; date?: string },
   ): Promise<Investment> {
     const investment = await this.activeOrFail(userId, investmentId);
-    const isStock = investment.kind === InvestmentKind.STOCK;
+    const isStock = usesUnits(investment.kind);
     const date = input.date ?? toDateKey(pktToday());
 
     let value: number;

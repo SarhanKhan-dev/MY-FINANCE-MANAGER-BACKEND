@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsString, Length, Matches } from 'class-validator';
-import { LoginResponseDto } from './login-response.dto';
+import { UserDto } from '../../users/dto/user.dto';
 
 export class SignupDto {
   @ApiProperty({ example: 'Ayesha Khan', minLength: 1, maxLength: 60 })
@@ -26,7 +26,28 @@ export class SignupDto {
   password: string;
 }
 
-export class SignupResponseDto extends LoginResponseDto {
+export class SignupResponseDto {
+  @ApiProperty({ type: UserDto })
+  user: UserDto;
+
   @ApiProperty({ description: 'The 4-digit PIN, shown exactly once' })
   pin: string;
+}
+
+export class RequestResetDto {
+  @ApiProperty({ description: 'Username or email' })
+  @IsString()
+  @Length(1, 120)
+  identifier: string;
+}
+
+export class ChangeEmailDto {
+  @ApiProperty()
+  @IsString()
+  @Length(1, 72)
+  password: string;
+
+  @ApiProperty()
+  @IsEmail()
+  newEmail: string;
 }

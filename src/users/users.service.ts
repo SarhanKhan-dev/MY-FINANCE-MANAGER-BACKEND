@@ -9,6 +9,7 @@ import { hash } from 'bcryptjs';
 import { randomInt } from 'crypto';
 import { PasswordTokensService } from '../auth/password-tokens.service';
 import { SafeUser, toSafeUser } from '../common/types/safe-user';
+import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { seedUserDefaults } from './user-defaults';
 
@@ -29,6 +30,7 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly passwordTokens: PasswordTokensService,
+    private readonly mail: MailService,
   ) {}
 
   async listUsers(): Promise<SafeUser[]> {
@@ -76,6 +78,8 @@ export class UsersService {
     });
 
     await this.audit(actor, AdminActions.USER_CREATED, user);
+    await this.mail.sendPasswordLink(normalizedEmail, setPasswordLink, 'invite');
+    await this.mail.sendPin(normalizedEmail, initialPin);
     return { user: toSafeUser(user), setPasswordLink, initialPin };
   }
 
@@ -102,6 +106,9 @@ export class UsersService {
       PasswordTokenPurpose.RESET,
     );
     await this.audit(actor, AdminActions.PASSWORD_RESET, user);
+    if (user.email) {
+      await this.mail.sendPasswordLink(user.email, setPasswordLink, 'reset');
+    }
     return { setPasswordLink };
   }
 

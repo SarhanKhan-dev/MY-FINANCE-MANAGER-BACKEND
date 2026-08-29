@@ -10,7 +10,12 @@ import { LoginDto } from './dto/login.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
 import { ChangePinDto, VerifyPinDto } from './dto/pin.dto';
 import { SetPasswordDto } from './dto/set-password.dto';
-import { SignupDto, SignupResponseDto } from './dto/signup.dto';
+import {
+  ChangeEmailDto,
+  RequestResetDto,
+  SignupDto,
+  SignupResponseDto,
+} from './dto/signup.dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -30,6 +35,25 @@ export class AuthController {
   @ApiOkResponse({ type: SignupResponseDto })
   signup(@Body() dto: SignupDto): Promise<SignupResponseDto> {
     return this.authService.signup(dto);
+  }
+
+  @Public()
+  @Post('request-reset')
+  @HttpCode(200)
+  async requestReset(@Body() dto: RequestResetDto): Promise<{ ok: true }> {
+    await this.authService.requestReset(dto.identifier);
+    return { ok: true };
+  }
+
+  @Post('change-email')
+  @HttpCode(200)
+  @ApiBearerAuth()
+  async changeEmail(
+    @CurrentUser() user: SafeUser,
+    @Body() dto: ChangeEmailDto,
+  ): Promise<{ ok: true }> {
+    await this.authService.changeEmail(user.id, dto.password, dto.newEmail);
+    return { ok: true };
   }
 
   @Public()

@@ -18,6 +18,7 @@ import { GoldModule } from './gold/gold.module';
 import { InvestmentsModule } from './investments/investments.module';
 import { MerchantsModule } from './merchants/merchants.module';
 import { PeopleModule } from './people/people.module';
+import { MailModule } from './mail/mail.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductsModule } from './products/products.module';
 import { ReportsModule } from './reports/reports.module';
@@ -32,6 +33,7 @@ import { ZakatModule } from './zakat/zakat.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
+    MailModule,
     EventsModule,
     AuthModule,
     UsersModule,

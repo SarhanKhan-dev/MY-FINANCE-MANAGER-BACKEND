@@ -6,10 +6,11 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { Role, UserStatus } from '@prisma/client';
+import { PasswordTokenPurpose, Role, UserStatus } from '@prisma/client';
 import { compare, hash } from 'bcryptjs';
 import { randomInt } from 'crypto';
 import { toSafeUser } from '../common/types/safe-user';
+import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserDto } from '../users/dto/user.dto';
 import { seedUserDefaults } from '../users/user-defaults';
@@ -26,6 +27,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly passwordTokens: PasswordTokensService,
+    private readonly mail: MailService,
   ) {}
 
   async login(identifier: string, password: string): Promise<LoginResponseDto> {
@@ -41,6 +43,9 @@ export class AuthService {
     }
     if (!(await compare(password, user.passwordHash))) {
       throw new UnauthorizedException('Wrong username or password');
+    }
+    if (user.status === UserStatus.PENDING) {
+      throw new UnauthorizedException('Your account is waiting for admin approval');
     }
     if (user.status !== UserStatus.ACTIVE) {
       throw new UnauthorizedException('Account is deactivated');
@@ -95,18 +100,42 @@ export class AuthService {
           passwordHash,
           pinHash,
           role: Role.USER,
+          // New accounts wait until the superadmin approves them.
+          status: UserStatus.PENDING,
         },
       });
       await seedUserDefaults(tx, created.id);
       return created;
     });
 
-    const accessToken = await this.jwtService.signAsync({
-      sub: user.id,
-      username: user.username,
-      role: user.role,
+    await this.mail.sendPin(email, pin);
+    return { user: UserDto.from(toSafeUser(user)), pin };
+  }
+
+  /** Always answers ok — never reveals whether the identifier exists. */
+  async requestReset(identifier: string): Promise<void> {
+    const normalized = identifier.toLowerCase().trim();
+    const user = await this.prisma.user.findFirst({
+      where: { OR: [{ username: normalized }, { email: normalized }] },
     });
-    return { accessToken, user: UserDto.from(toSafeUser(user)), pin };
+    if (!user?.email || user.status === UserStatus.DEACTIVATED) return;
+    const link = await this.passwordTokens.issue(user.id, PasswordTokenPurpose.RESET);
+    await this.mail.sendPasswordLink(user.email, link, 'reset');
+  }
+
+  async changeEmail(userId: string, password: string, newEmail: string): Promise<void> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (!user.passwordHash || !(await compare(password, user.passwordHash))) {
+      throw new BadRequestException('Password is wrong');
+    }
+    const email = newEmail.toLowerCase().trim();
+    const clash = await this.prisma.user.findFirst({
+      where: { email, id: { not: userId } },
+    });
+    if (clash) {
+      throw new ConflictException('Email is already registered');
+    }
+    await this.prisma.user.update({ where: { id: userId }, data: { email } });
   }
 
   async setPassword(rawToken: string, newPassword: string): Promise<void> {

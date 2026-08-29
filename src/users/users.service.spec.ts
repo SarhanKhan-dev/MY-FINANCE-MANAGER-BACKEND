@@ -14,6 +14,8 @@ describe('UsersService', () => {
     wallet: { createMany: jest.fn() },
     category: { createMany: jest.fn() },
     userSettings: { create: jest.fn() },
+    productCategory: { createMany: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+    product: { createMany: jest.fn() },
   };
 
   const prisma = {
@@ -60,11 +62,14 @@ describe('UsersService', () => {
     ...overrides,
   });
 
+  const mail = { sendPasswordLink: jest.fn(), sendPin: jest.fn() };
+
   beforeEach(() => {
     jest.clearAllMocks();
     service = new UsersService(
       prisma as unknown as PrismaService,
       passwordTokens as unknown as PasswordTokensService,
+      mail as unknown as import('../mail/mail.service').MailService,
     );
   });
 

@@ -16,6 +16,7 @@ enum Role {
 enum UserStatus {
   ACTIVE
   DEACTIVATED
+  PENDING
 }
 
 enum Currency {
@@ -304,6 +305,7 @@ model Transaction {
 
 enum InvestmentKind {
   STOCK
+  FUND
   ACCOUNT
   SAVINGS
   LAND
@@ -317,6 +319,7 @@ model Investment {
   user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   name             String
   kind             InvestmentKind
+  provider         String?
   currency         Currency       @default(PKR)
   units            Decimal?       @db.Decimal(16, 4)
   currentUnitPrice Decimal?       @db.Decimal(14, 4)

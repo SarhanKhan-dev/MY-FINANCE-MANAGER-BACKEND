@@ -42,6 +42,15 @@ class CreateInvestmentDto {
   @IsEnum(InvestmentKind)
   kind: InvestmentKind;
 
+  @ApiPropertyOptional({
+    example: 'Al Meezan Investment Management',
+    description: 'The AMC or platform this holding lives with',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(1, 80)
+  provider?: string;
+
   @ApiPropertyOptional({ enum: Currency })
   @IsOptional()
   @IsEnum(Currency)
@@ -114,6 +123,7 @@ class HoldingDto implements HoldingView {
   @ApiProperty() id: string;
   @ApiProperty() name: string;
   @ApiProperty({ enum: InvestmentKind }) kind: InvestmentKind;
+  @ApiProperty({ type: String, nullable: true }) provider: string | null;
   @ApiProperty({ enum: Currency }) currency: Currency;
   @ApiProperty({ type: Number, nullable: true }) units: number | null;
   @ApiProperty({ type: Number, nullable: true }) currentUnitPrice: number | null;
