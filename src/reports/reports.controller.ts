@@ -24,10 +24,16 @@ class OverviewTotalsDto {
   @ApiProperty({ type: Number, nullable: true }) usdRate: number | null;
 }
 
+class OverviewDebtsDto {
+  @ApiProperty() iOwePkr: number;
+  @ApiProperty() owedToMePkr: number;
+}
+
 class OverviewDto {
   @ApiProperty({ type: BudgetStatusDto }) budget: BudgetStatusDto;
   @ApiProperty({ type: OverviewWalletDto, isArray: true }) wallets: OverviewWalletDto[];
   @ApiProperty({ type: OverviewTotalsDto }) totals: OverviewTotalsDto;
+  @ApiProperty({ type: OverviewDebtsDto }) debts: OverviewDebtsDto;
   @ApiProperty({ type: TransactionDto, isArray: true }) recent: TransactionDto[];
 }
 
@@ -45,6 +51,7 @@ export class ReportsController {
       budget: overview.budget,
       wallets: overview.wallets,
       totals: overview.totals,
+      debts: overview.debts,
       recent: overview.recent.map(TransactionDto.from),
     };
   }

@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Currency, TransactionType, WalletKind } from '@prisma/client';
 import { BudgetService } from '../budget/budget.service';
+import { DebtsService } from '../debts/debts.service';
 import { EventsService } from '../events/events.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
@@ -25,6 +26,7 @@ describe('TransactionsService', () => {
   };
   const events = { record: jest.fn() };
   const budget = { checkAlerts: jest.fn() };
+  const debts = { positionFor: jest.fn() };
 
   const cashPkr = {
     id: 'cash',
@@ -84,13 +86,22 @@ describe('TransactionsService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     prisma.wallet.findMany.mockResolvedValue([cashPkr, bankPkr, cashUsd]);
+    prisma.person.findFirst.mockResolvedValue({ id: 'p1', userId: 'u1', name: 'Ali' });
     prisma.transaction.findFirst.mockResolvedValue(null);
     tx.transaction.create.mockResolvedValue(createdRow());
     budget.checkAlerts.mockResolvedValue([]);
+    debts.positionFor.mockResolvedValue({
+      personId: 'p1',
+      iOwePkr: 0,
+      owedToMePkr: 0,
+      takenPkr: 0,
+      writtenOffPkr: 0,
+    });
     service = new TransactionsService(
       prisma as unknown as PrismaService,
       events as unknown as EventsService,
       budget as unknown as BudgetService,
+      debts as unknown as DebtsService,
     );
   });
 
@@ -244,6 +255,116 @@ describe('TransactionsService', () => {
           }),
         ),
       ).rejects.toThrow('Use Moved money for the same currency');
+    });
+  });
+
+  describe('debts', () => {
+    it('demands a person on every debt entry', async () => {
+      await expect(
+        service.create('u1', dto({ type: TransactionType.BORROW, toWalletId: 'cash' })),
+      ).rejects.toThrow('Pick a person');
+    });
+
+    it('borrowing needs the receiving wallet and moves money in', async () => {
+      tx.transaction.create.mockResolvedValue(createdRow({ type: TransactionType.BORROW }));
+
+      await service.create(
+        'u1',
+        dto({ type: TransactionType.BORROW, toWalletId: 'cash', personId: 'p1' }),
+      );
+
+      expect(tx.transaction.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            toWalletId: 'cash',
+            fromWalletId: null,
+            personId: 'p1',
+          }),
+        }),
+      );
+    });
+
+    it('a work offset moves no wallet money', async () => {
+      debts.positionFor.mockResolvedValue({ iOwePkr: 100, owedToMePkr: 0 });
+      tx.transaction.create.mockResolvedValue(createdRow({ type: TransactionType.WORK_OFFSET }));
+
+      await service.create(
+        'u1',
+        dto({ type: TransactionType.WORK_OFFSET, personId: 'p1', amount: 40 }),
+      );
+
+      expect(tx.transaction.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ fromWalletId: null, toWalletId: null }),
+        }),
+      );
+    });
+
+    it('asks before an over-repayment flips the direction', async () => {
+      debts.positionFor.mockResolvedValue({ iOwePkr: 100, owedToMePkr: 0 });
+
+      await expect(
+        service.create(
+          'u1',
+          dto({
+            type: TransactionType.REPAY_OUT,
+            fromWalletId: 'cash',
+            personId: 'p1',
+            amount: 300,
+          }),
+        ),
+      ).rejects.toThrow('More than you owe — this flips it. Save anyway?');
+    });
+
+    it('saves the flip when forced', async () => {
+      debts.positionFor.mockResolvedValue({ iOwePkr: 100, owedToMePkr: 0 });
+      tx.transaction.create.mockResolvedValue(createdRow({ type: TransactionType.REPAY_OUT }));
+
+      await service.create(
+        'u1',
+        dto({
+          type: TransactionType.REPAY_OUT,
+          fromWalletId: 'cash',
+          personId: 'p1',
+          amount: 300,
+          force: true,
+        }),
+      );
+
+      expect(tx.transaction.create).toHaveBeenCalled();
+    });
+
+    it('blocks writing off more than they owe', async () => {
+      debts.positionFor.mockResolvedValue({ iOwePkr: 0, owedToMePkr: 150 });
+
+      await expect(
+        service.create(
+          'u1',
+          dto({ type: TransactionType.WRITE_OFF, personId: 'p1', amount: 200 }),
+        ),
+      ).rejects.toThrow('Only up to what they owe');
+    });
+
+    it('blocks balancing out more than the smaller side', async () => {
+      debts.positionFor.mockResolvedValue({ iOwePkr: 20, owedToMePkr: 500 });
+
+      await expect(
+        service.create(
+          'u1',
+          dto({ type: TransactionType.BALANCE_OUT, personId: 'p1', amount: 100 }),
+        ),
+      ).rejects.toThrow('Only up to the smaller side');
+    });
+
+    it('counts taken money toward budget alerts', async () => {
+      tx.transaction.create.mockResolvedValue(createdRow({ type: TransactionType.TAKEN }));
+
+      await service.create(
+        'u1',
+        dto({ type: TransactionType.TAKEN, fromWalletId: 'cash', personId: 'p1' }),
+      );
+
+      expect(budget.checkAlerts).toHaveBeenCalledWith('u1');
     });
   });
 

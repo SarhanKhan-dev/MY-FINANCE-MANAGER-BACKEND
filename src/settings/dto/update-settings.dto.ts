@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsNumber, IsOptional, IsPositive, Max, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsNumber, IsOptional, IsPositive, Max, Min } from 'class-validator';
 
 export class UpdateSettingsDto {
   @ApiPropertyOptional({ example: 100000, description: 'Monthly spend cap in PKR' })
@@ -15,4 +15,14 @@ export class UpdateSettingsDto {
   @Min(1)
   @Max(28)
   budgetCycleStartDay?: number;
+
+  @ApiPropertyOptional({ description: 'Count money you lend toward the cap' })
+  @IsOptional()
+  @IsBoolean()
+  countLendingInCap?: boolean;
+
+  @ApiPropertyOptional({ description: 'Count written-off money toward the cap' })
+  @IsOptional()
+  @IsBoolean()
+  countWriteOffsInCap?: boolean;
 }

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
 import { Person } from '@prisma/client';
 import { IsOptional, IsString, Length } from 'class-validator';
@@ -49,5 +49,22 @@ export class PeopleController {
   @ApiOkResponse({ type: PersonDto })
   async create(@CurrentUser() user: SafeUser, @Body() dto: CreatePersonDto): Promise<PersonDto> {
     return PersonDto.from(await this.peopleService.create(user.id, dto.name, dto.phone));
+  }
+
+  @Post(':id/archive')
+  @HttpCode(200)
+  @ApiOkResponse({ type: PersonDto })
+  async archive(@CurrentUser() user: SafeUser, @Param('id') id: string): Promise<PersonDto> {
+    return PersonDto.from(await this.peopleService.archive(user.id, id));
+  }
+
+  @Delete(':id')
+  @HttpCode(200)
+  async remove(
+    @CurrentUser() user: SafeUser,
+    @Param('id') id: string,
+  ): Promise<{ ok: true }> {
+    await this.peopleService.remove(user.id, id);
+    return { ok: true };
   }
 }

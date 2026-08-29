@@ -14,7 +14,12 @@ describe('BudgetService', () => {
   };
   const events = { record: jest.fn() };
 
-  const settings = { budgetCapPkr: new Prisma.Decimal(100000), budgetCycleStartDay: 1 };
+  const settings = {
+    budgetCapPkr: new Prisma.Decimal(100000),
+    budgetCycleStartDay: 1,
+    countLendingInCap: false,
+    countWriteOffsInCap: true,
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -40,14 +45,33 @@ describe('BudgetService', () => {
     expect(status.pct).toBe(58);
   });
 
-  it('only counts EXPENSE entries toward the cap', async () => {
+  it('counts expenses and taken money by default, never lending', async () => {
     prisma.transaction.findMany.mockResolvedValue([]);
 
     await service.current('u1');
 
     expect(prisma.transaction.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ type: TransactionType.EXPENSE }),
+        where: expect.objectContaining({
+          type: { in: [TransactionType.EXPENSE, TransactionType.TAKEN] },
+        }),
+      }),
+    );
+  });
+
+  it('counts lending toward the cap when the toggle is on', async () => {
+    prisma.userSettings.upsert.mockResolvedValue({ ...settings, countLendingInCap: true });
+    prisma.transaction.findMany.mockResolvedValue([]);
+
+    await service.current('u1');
+
+    expect(prisma.transaction.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          type: {
+            in: [TransactionType.EXPENSE, TransactionType.LEND, TransactionType.TAKEN],
+          },
+        }),
       }),
     );
   });

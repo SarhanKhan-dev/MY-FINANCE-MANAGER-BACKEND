@@ -33,7 +33,7 @@ export class BudgetService {
       update: {},
     });
     const cycle = cycleFor(settings.budgetCycleStartDay);
-    const spent = await this.spentInCycle(userId, cycle);
+    const spent = await this.spentInCycle(userId, cycle, settings);
     const cap = Number(settings.budgetCapPkr);
     const remaining = cap - spent;
 
@@ -84,11 +84,19 @@ export class BudgetService {
     return fresh;
   }
 
-  private async spentInCycle(userId: string, cycle: BudgetCycle): Promise<number> {
+  private async spentInCycle(
+    userId: string,
+    cycle: BudgetCycle,
+    settings: { countLendingInCap: boolean; countWriteOffsInCap: boolean },
+  ): Promise<number> {
+    const capTypes: TransactionType[] = [TransactionType.EXPENSE];
+    if (settings.countLendingInCap) capTypes.push(TransactionType.LEND);
+    if (settings.countWriteOffsInCap) capTypes.push(TransactionType.TAKEN);
+
     const expenses = await this.prisma.transaction.findMany({
       where: {
         userId,
-        type: TransactionType.EXPENSE,
+        type: { in: capTypes },
         date: { gte: cycle.start, lt: cycle.end },
       },
       select: { amount: true, currency: true, fxRate: true },

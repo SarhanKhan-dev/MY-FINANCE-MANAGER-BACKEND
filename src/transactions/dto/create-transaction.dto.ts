@@ -36,7 +36,7 @@ export class CreateTransactionDto {
   @ValidateIf(
     (o: CreateTransactionDto) =>
       o.type === TransactionType.CONVERSION ||
-      (o.type === TransactionType.EXPENSE && o.currency === Currency.USD) ||
+      (o.currency === Currency.USD && o.type !== TransactionType.TRANSFER) ||
       o.fxRate !== undefined,
   )
   @IsNumber({ maxDecimalPlaces: 6 })
@@ -50,12 +50,33 @@ export class CreateTransactionDto {
   toAmount?: number;
 
   @ApiPropertyOptional({ description: 'Wallet the money left' })
-  @ValidateIf((o: CreateTransactionDto) => o.type !== TransactionType.INCOME)
+  @ValidateIf((o: CreateTransactionDto) =>
+    (
+      [
+        TransactionType.EXPENSE,
+        TransactionType.TRANSFER,
+        TransactionType.CONVERSION,
+        TransactionType.LEND,
+        TransactionType.REPAY_OUT,
+        TransactionType.TAKEN,
+      ] as TransactionType[]
+    ).includes(o.type),
+  )
   @IsString()
   fromWalletId?: string;
 
   @ApiPropertyOptional({ description: 'Wallet the money entered' })
-  @ValidateIf((o: CreateTransactionDto) => o.type !== TransactionType.EXPENSE)
+  @ValidateIf((o: CreateTransactionDto) =>
+    (
+      [
+        TransactionType.INCOME,
+        TransactionType.TRANSFER,
+        TransactionType.CONVERSION,
+        TransactionType.BORROW,
+        TransactionType.REPAY_IN,
+      ] as TransactionType[]
+    ).includes(o.type),
+  )
   @IsString()
   toWalletId?: string;
 

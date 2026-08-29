@@ -7,6 +7,7 @@ import {
 import { Currency, Prisma, TransactionType, Wallet } from '@prisma/client';
 import { BudgetService } from '../budget/budget.service';
 import { parseDateOnly } from '../budget/cycle';
+import { DebtsService } from '../debts/debts.service';
 import { EventTypes } from '../events/event-types';
 import { EventsService } from '../events/events.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -17,6 +18,38 @@ import { transactionInclude, TransactionWithRefs } from './transaction-with-refs
 
 const DUPLICATE_WINDOW_MS = 2 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+const WALLET_IN_TYPES: TransactionType[] = [
+  TransactionType.INCOME,
+  TransactionType.BORROW,
+  TransactionType.REPAY_IN,
+];
+const WALLET_OUT_TYPES: TransactionType[] = [
+  TransactionType.EXPENSE,
+  TransactionType.LEND,
+  TransactionType.REPAY_OUT,
+  TransactionType.TAKEN,
+];
+const NO_WALLET_TYPES: TransactionType[] = [
+  TransactionType.WORK_OFFSET,
+  TransactionType.WRITE_OFF,
+  TransactionType.BALANCE_OUT,
+];
+const PERSON_REQUIRED_TYPES: TransactionType[] = [
+  TransactionType.BORROW,
+  TransactionType.LEND,
+  TransactionType.REPAY_IN,
+  TransactionType.REPAY_OUT,
+  TransactionType.WORK_OFFSET,
+  TransactionType.TAKEN,
+  TransactionType.WRITE_OFF,
+  TransactionType.BALANCE_OUT,
+];
+const CAP_TYPES: TransactionType[] = [
+  TransactionType.EXPENSE,
+  TransactionType.LEND,
+  TransactionType.TAKEN,
+];
 
 interface NormalizedTransaction {
   type: TransactionType;
@@ -41,6 +74,7 @@ export class TransactionsService {
     private readonly prisma: PrismaService,
     private readonly events: EventsService,
     private readonly budget: BudgetService,
+    private readonly debts: DebtsService,
   ) {}
 
   async create(
@@ -73,6 +107,7 @@ export class TransactionsService {
       note: dto.note?.trim() || null,
     });
 
+    await this.guardDebtLimits(userId, data, dto.force ?? false);
     if (!dto.force) {
       await this.guardDuplicates(userId, data);
     }
@@ -93,7 +128,7 @@ export class TransactionsService {
       return transaction;
     });
 
-    if (created.type === TransactionType.EXPENSE) {
+    if (CAP_TYPES.includes(created.type)) {
       await this.budget.checkAlerts(userId);
     }
     return created;
@@ -181,7 +216,7 @@ export class TransactionsService {
       return transaction;
     });
 
-    if (existing.type === TransactionType.EXPENSE) {
+    if (CAP_TYPES.includes(existing.type)) {
       await this.budget.checkAlerts(userId);
     }
     return updated;
@@ -214,11 +249,12 @@ export class TransactionsService {
     let biggest: number | null = null;
     for (const row of rows) {
       const pkr = this.toPkr(row.amount, row.currency, row.fxRate);
-      if (row.type === TransactionType.EXPENSE && pkr !== null) {
+      if (pkr === null) continue;
+      if (WALLET_OUT_TYPES.includes(row.type)) {
         spent += pkr;
         if (biggest === null || pkr > biggest) biggest = pkr;
       }
-      if (row.type === TransactionType.INCOME && pkr !== null) {
+      if (WALLET_IN_TYPES.includes(row.type)) {
         received += pkr;
       }
     }
@@ -284,85 +320,82 @@ export class TransactionsService {
 
     const fromWallet = resolve(data.fromWalletId, 'From');
     const toWallet = resolve(data.toWalletId, 'To');
+    const requireUsdRate = () => {
+      if (data.currency === Currency.USD && !data.fxRate) {
+        throw new BadRequestException('Enter the USD rate');
+      }
+    };
 
-    switch (data.type) {
-      case TransactionType.EXPENSE: {
-        if (!fromWallet) throw new BadRequestException('Paid from which wallet?');
-        if (data.currency !== fromWallet.currency) {
-          throw new BadRequestException('Amount currency must match the wallet');
-        }
-        if (data.currency === Currency.USD && !data.fxRate) {
-          throw new BadRequestException('Enter the USD rate');
-        }
-        data.toWalletId = null;
-        data.toAmount = null;
-        break;
+    if (data.type === TransactionType.TRANSFER) {
+      if (!fromWallet || !toWallet) throw new BadRequestException('Pick both wallets');
+      if (fromWallet.id === toWallet.id) {
+        throw new BadRequestException('Pick two different wallets');
       }
-      case TransactionType.INCOME: {
-        if (!toWallet) throw new BadRequestException('Into which wallet?');
-        if (data.currency !== toWallet.currency) {
-          throw new BadRequestException('Amount currency must match the wallet');
-        }
-        if (!data.personId && !data.incomeSource) {
-          throw new BadRequestException('Say who it came from');
-        }
-        data.fromWalletId = null;
-        data.toAmount = null;
-        data.categoryId = null;
-        data.merchantId = null;
-        break;
+      if (fromWallet.currency !== toWallet.currency) {
+        throw new BadRequestException('Use Converted currency for different currencies');
       }
-      case TransactionType.TRANSFER: {
-        if (!fromWallet || !toWallet) {
-          throw new BadRequestException('Pick both wallets');
-        }
-        if (fromWallet.id === toWallet.id) {
-          throw new BadRequestException('Pick two different wallets');
-        }
-        if (fromWallet.currency !== toWallet.currency) {
-          throw new BadRequestException('Use Converted currency for different currencies');
-        }
-        if (data.currency !== fromWallet.currency) {
-          throw new BadRequestException('Amount currency must match the wallets');
-        }
-        data.toAmount = null;
-        data.categoryId = null;
-        data.merchantId = null;
-        data.personId = null;
-        break;
+      if (data.currency !== fromWallet.currency) {
+        throw new BadRequestException('Amount currency must match the wallets');
       }
-      case TransactionType.CONVERSION: {
-        if (!fromWallet || !toWallet) {
-          throw new BadRequestException('Pick both wallets');
-        }
-        if (fromWallet.currency === toWallet.currency) {
-          throw new BadRequestException('Use Moved money for the same currency');
-        }
-        if (data.currency !== fromWallet.currency) {
-          throw new BadRequestException('Amount currency must match the from-wallet');
-        }
-        if (!data.fxRate) {
-          throw new BadRequestException('Enter the rate used');
-        }
-        if (!data.toAmount) {
-          const converted =
-            fromWallet.currency === Currency.USD
-              ? data.amount * data.fxRate
-              : data.amount / data.fxRate;
-          data.toAmount = Math.round(converted * 100) / 100;
-        }
-        data.categoryId = null;
-        data.merchantId = null;
-        data.personId = null;
-        break;
+      data.toAmount = null;
+      data.categoryId = null;
+      data.merchantId = null;
+      data.personId = null;
+    } else if (data.type === TransactionType.CONVERSION) {
+      if (!fromWallet || !toWallet) throw new BadRequestException('Pick both wallets');
+      if (fromWallet.currency === toWallet.currency) {
+        throw new BadRequestException('Use Moved money for the same currency');
       }
+      if (data.currency !== fromWallet.currency) {
+        throw new BadRequestException('Amount currency must match the from-wallet');
+      }
+      if (!data.fxRate) throw new BadRequestException('Enter the rate used');
+      if (!data.toAmount) {
+        const converted =
+          fromWallet.currency === Currency.USD
+            ? data.amount * data.fxRate
+            : data.amount / data.fxRate;
+        data.toAmount = Math.round(converted * 100) / 100;
+      }
+      data.categoryId = null;
+      data.merchantId = null;
+      data.personId = null;
+    } else if (WALLET_OUT_TYPES.includes(data.type)) {
+      if (!fromWallet) throw new BadRequestException('Paid from which wallet?');
+      if (data.currency !== fromWallet.currency) {
+        throw new BadRequestException('Amount currency must match the wallet');
+      }
+      requireUsdRate();
+      data.toWalletId = null;
+      data.toAmount = null;
+    } else if (WALLET_IN_TYPES.includes(data.type)) {
+      if (!toWallet) throw new BadRequestException('Into which wallet?');
+      if (data.currency !== toWallet.currency) {
+        throw new BadRequestException('Amount currency must match the wallet');
+      }
+      requireUsdRate();
+      data.fromWalletId = null;
+      data.toAmount = null;
+    } else if (NO_WALLET_TYPES.includes(data.type)) {
+      requireUsdRate();
+      data.fromWalletId = null;
+      data.toWalletId = null;
+      data.toAmount = null;
+    }
+
+    if (PERSON_REQUIRED_TYPES.includes(data.type) && !data.personId) {
+      throw new BadRequestException('Pick a person');
+    }
+    if (data.type === TransactionType.INCOME && !data.personId && !data.incomeSource) {
+      throw new BadRequestException('Say who it came from');
     }
 
     if (data.type !== TransactionType.EXPENSE) {
-      data.incomeType = data.type === TransactionType.INCOME ? (data.incomeType ?? 'Other') : null;
-      if (data.type !== TransactionType.INCOME) {
-        data.incomeSource = null;
-      }
+      data.categoryId = null;
+      data.merchantId = null;
+    }
+    if (data.type === TransactionType.INCOME) {
+      data.incomeType = data.incomeType ?? 'Other';
     } else {
       data.incomeSource = null;
       data.incomeType = null;
@@ -388,6 +421,55 @@ export class TransactionsService {
     }
 
     return data;
+  }
+
+  /** Direction-flip confirms and hard caps for debt entries (secs 46, 51, 44). */
+  private async guardDebtLimits(
+    userId: string,
+    data: NormalizedTransaction,
+    force: boolean,
+  ): Promise<void> {
+    const needsPosition: TransactionType[] = [
+      TransactionType.REPAY_IN,
+      TransactionType.REPAY_OUT,
+      TransactionType.WORK_OFFSET,
+      TransactionType.WRITE_OFF,
+      TransactionType.BALANCE_OUT,
+    ];
+    if (!needsPosition.includes(data.type) || !data.personId) return;
+
+    const position = await this.debts.positionFor(userId, data.personId);
+    const pkr =
+      data.currency === Currency.PKR ? data.amount : data.amount * (data.fxRate ?? 0);
+    const epsilon = 0.01;
+
+    switch (data.type) {
+      case TransactionType.REPAY_OUT:
+      case TransactionType.WORK_OFFSET:
+        if (!force && pkr > position.iOwePkr + epsilon) {
+          throw new ConflictException('More than you owe — this flips it. Save anyway?');
+        }
+        break;
+      case TransactionType.REPAY_IN:
+        if (!force && pkr > position.owedToMePkr + epsilon) {
+          throw new ConflictException('More than they owe — this flips it. Save anyway?');
+        }
+        break;
+      case TransactionType.WRITE_OFF:
+        if (pkr > position.owedToMePkr + epsilon) {
+          throw new BadRequestException('Only up to what they owe');
+        }
+        break;
+      case TransactionType.BALANCE_OUT: {
+        const limit = Math.min(position.iOwePkr, position.owedToMePkr);
+        if (pkr > limit + epsilon) {
+          throw new BadRequestException('Only up to the smaller side');
+        }
+        break;
+      }
+      default:
+        break;
+    }
   }
 
   private async guardDuplicates(userId: string, data: NormalizedTransaction): Promise<void> {

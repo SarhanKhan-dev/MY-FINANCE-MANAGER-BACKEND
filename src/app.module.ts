@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { AuthModule } from './auth/auth.module';
 import { BudgetModule } from './budget/budget.module';
 import { CategoriesModule } from './categories/categories.module';
+import { DebtsModule } from './debts/debts.module';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -33,6 +34,7 @@ import { WalletsModule } from './wallets/wallets.module';
     PeopleModule,
     TransactionsModule,
     BudgetModule,
+    DebtsModule,
     FxModule,
     ReportsModule,
   ],

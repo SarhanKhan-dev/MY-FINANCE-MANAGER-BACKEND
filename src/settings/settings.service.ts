@@ -28,6 +28,8 @@ export class SettingsService {
       data: {
         budgetCapPkr: dto.budgetCapPkr,
         budgetCycleStartDay: dto.budgetCycleStartDay,
+        countLendingInCap: dto.countLendingInCap,
+        countWriteOffsInCap: dto.countWriteOffsInCap,
       },
     });
 
@@ -39,10 +41,14 @@ export class SettingsService {
       before: {
         budgetCapPkr: before.budgetCapPkr.toString(),
         budgetCycleStartDay: before.budgetCycleStartDay,
+        countLendingInCap: before.countLendingInCap,
+        countWriteOffsInCap: before.countWriteOffsInCap,
       },
       after: {
         budgetCapPkr: updated.budgetCapPkr.toString(),
         budgetCycleStartDay: updated.budgetCycleStartDay,
+        countLendingInCap: updated.countLendingInCap,
+        countWriteOffsInCap: updated.countWriteOffsInCap,
       },
     });
 

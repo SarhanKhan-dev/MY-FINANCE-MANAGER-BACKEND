@@ -23,6 +23,8 @@ describe('SettingsService', () => {
     userId: 'u1',
     budgetCapPkr: new Prisma.Decimal(100000),
     budgetCycleStartDay: 1,
+    countLendingInCap: false,
+    countWriteOffsInCap: true,
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
     ...overrides,
@@ -68,8 +70,8 @@ describe('SettingsService', () => {
         expect.objectContaining({
           userId: 'u1',
           type: EventTypes.SETTINGS_CHANGED,
-          before: { budgetCapPkr: '100000', budgetCycleStartDay: 1 },
-          after: { budgetCapPkr: '150000', budgetCycleStartDay: 5 },
+          before: expect.objectContaining({ budgetCapPkr: '100000', budgetCycleStartDay: 1 }),
+          after: expect.objectContaining({ budgetCapPkr: '150000', budgetCycleStartDay: 5 }),
         }),
       );
     });

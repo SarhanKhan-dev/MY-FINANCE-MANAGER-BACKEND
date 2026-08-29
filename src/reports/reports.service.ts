@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Currency, WalletKind } from '@prisma/client';
 import { BudgetService, BudgetStatus } from '../budget/budget.service';
+import { DebtsService } from '../debts/debts.service';
 import { FxService } from '../fx/fx.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { transactionInclude, TransactionWithRefs } from '../transactions/transaction-with-refs';
@@ -27,6 +28,7 @@ export interface Overview {
   budget: BudgetStatus;
   wallets: OverviewWallet[];
   totals: OverviewTotals;
+  debts: { iOwePkr: number; owedToMePkr: number };
   recent: TransactionWithRefs[];
 }
 
@@ -37,13 +39,15 @@ export class ReportsService {
     private readonly budget: BudgetService,
     private readonly wallets: WalletsService,
     private readonly fx: FxService,
+    private readonly debts: DebtsService,
   ) {}
 
   async overview(userId: string): Promise<Overview> {
-    const [budget, walletRows, usdRate, recent] = await Promise.all([
+    const [budget, walletRows, usdRate, debtsSummary, recent] = await Promise.all([
       this.budget.current(userId),
       this.wallets.list(userId),
       this.fx.usdToPkrOrNull(),
+      this.debts.summary(userId),
       this.prisma.transaction.findMany({
         where: { userId },
         include: transactionInclude,
@@ -96,6 +100,7 @@ export class ReportsService {
         cashPkr: round(cash),
         usdRate,
       },
+      debts: { iOwePkr: debtsSummary.iOwePkr, owedToMePkr: debtsSummary.owedToMePkr },
       recent,
     };
   }

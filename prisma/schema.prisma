@@ -79,6 +79,8 @@ model UserSettings {
   user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   budgetCapPkr        Decimal  @default(100000) @db.Decimal(14, 2)
   budgetCycleStartDay Int      @default(1)
+  countLendingInCap   Boolean  @default(false)
+  countWriteOffsInCap Boolean  @default(true)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }
@@ -152,6 +154,14 @@ enum TransactionType {
   INCOME
   TRANSFER
   CONVERSION
+  BORROW
+  LEND
+  REPAY_IN
+  REPAY_OUT
+  WORK_OFFSET
+  TAKEN
+  WRITE_OFF
+  BALANCE_OUT
 }
 
 model Transaction {

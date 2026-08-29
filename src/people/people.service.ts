@@ -43,4 +43,22 @@ export class PeopleService {
     }
     return person;
   }
+
+  /** Hard delete is only for people with no history — otherwise archive (sec 46). */
+  async remove(userId: string, personId: string): Promise<void> {
+    const person = await this.findOrFail(userId, personId);
+    const used = await this.prisma.transaction.count({ where: { userId, personId } });
+    if (used > 0) {
+      throw new ConflictException('Has history — archive instead');
+    }
+    await this.prisma.person.delete({ where: { id: person.id } });
+  }
+
+  async archive(userId: string, personId: string): Promise<Person> {
+    const person = await this.findOrFail(userId, personId);
+    return this.prisma.person.update({
+      where: { id: person.id },
+      data: { archivedAt: new Date() },
+    });
+  }
 }
