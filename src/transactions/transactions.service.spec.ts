@@ -151,6 +151,77 @@ describe('TransactionsService', () => {
     });
   });
 
+  describe('opening balances', () => {
+    it('books an OPENING straight into the wallet with no person or category', async () => {
+      tx.transaction.create.mockResolvedValue(
+        createdRow({ type: TransactionType.OPENING, fromWallet: null }),
+      );
+
+      await service.create(
+        'u1',
+        dto({ type: TransactionType.OPENING, toWalletId: 'cash', amount: 250000 }),
+      );
+
+      expect(tx.transaction.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            type: TransactionType.OPENING,
+            toWalletId: 'cash',
+            fromWalletId: null,
+            personId: null,
+            categoryId: null,
+          }),
+        }),
+      );
+    });
+
+    it('demands the destination wallet', async () => {
+      await expect(
+        service.create('u1', dto({ type: TransactionType.OPENING, toWalletId: undefined })),
+      ).rejects.toThrow('Into which wallet?');
+    });
+
+    it('demands the USD rate for a USD opening balance', async () => {
+      await expect(
+        service.create(
+          'u1',
+          dto({ type: TransactionType.OPENING, toWalletId: 'usd', currency: Currency.USD }),
+        ),
+      ).rejects.toThrow('Enter the USD rate');
+    });
+
+    it('keeps opening balances out of money received in the summary', async () => {
+      prisma.transaction.findMany.mockResolvedValue([
+        {
+          type: TransactionType.OPENING,
+          amount: { toString: () => '250000' },
+          currency: Currency.PKR,
+          fxRate: null,
+          fromWalletId: null,
+        },
+        {
+          type: TransactionType.INCOME,
+          amount: { toString: () => '50000' },
+          currency: Currency.PKR,
+          fxRate: null,
+          fromWalletId: null,
+        },
+        {
+          type: TransactionType.EXPENSE,
+          amount: { toString: () => '2000' },
+          currency: Currency.PKR,
+          fxRate: null,
+          fromWalletId: 'cash',
+        },
+      ]);
+
+      const summary = await service.summary('u1', { page: 1, pageSize: 20 });
+
+      expect(summary.receivedPkr).toBe(50000);
+      expect(summary.spentPkr).toBe(2000);
+    });
+  });
+
   describe('receiving', () => {
     it('demands the destination wallet and the source', async () => {
       await expect(

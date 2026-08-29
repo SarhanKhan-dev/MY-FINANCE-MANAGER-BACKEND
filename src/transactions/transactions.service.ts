@@ -25,6 +25,7 @@ const WALLET_IN_TYPES: TransactionType[] = [
   TransactionType.REPAY_IN,
   TransactionType.INVESTMENT_OUT,
   TransactionType.COMMITTEE_PAYOUT,
+  TransactionType.OPENING,
 ];
 const WALLET_OUT_TYPES: TransactionType[] = [
   TransactionType.EXPENSE,
@@ -364,7 +365,8 @@ export class TransactionsService {
         spent += pkr;
         if (biggest === null || pkr > biggest) biggest = pkr;
       }
-      if (WALLET_IN_TYPES.includes(row.type)) {
+      // Opening balances seed a wallet; they are not money received.
+      if (WALLET_IN_TYPES.includes(row.type) && row.type !== TransactionType.OPENING) {
         received += pkr;
       }
     }

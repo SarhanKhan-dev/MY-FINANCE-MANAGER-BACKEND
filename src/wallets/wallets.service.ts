@@ -4,10 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, TransactionType, Wallet } from '@prisma/client';
+import { Currency, Prisma, TransactionType, Wallet } from '@prisma/client';
+import { pktToday } from '../budget/cycle';
 import { EventTypes } from '../events/event-types';
 import { EventsService } from '../events/events.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { TransactionsService } from '../transactions/transactions.service';
 import { CreateWalletDto, UpdateWalletDto } from './dto/create-wallet.dto';
 
 const ZERO = new Prisma.Decimal(0);
@@ -17,6 +19,7 @@ export class WalletsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: EventsService,
+    private readonly transactions: TransactionsService,
   ) {}
 
   /** Balance per wallet id, derived entirely from transactions. */
@@ -77,6 +80,9 @@ export class WalletsService {
     if (existing) {
       throw new ConflictException('A wallet with this name already exists');
     }
+    if (dto.openingBalance && dto.currency === Currency.USD && !dto.openingFxRate) {
+      throw new BadRequestException('Enter the USD rate for the starting balance');
+    }
     const wallet = await this.prisma.wallet.create({
       data: { userId, name: dto.name, kind: dto.kind, currency: dto.currency },
     });
@@ -87,6 +93,17 @@ export class WalletsService {
       entityId: wallet.id,
       after: { name: wallet.name, kind: wallet.kind, currency: wallet.currency },
     });
+    if (dto.openingBalance) {
+      await this.transactions.create(userId, {
+        type: TransactionType.OPENING,
+        date: pktToday().toISOString().slice(0, 10),
+        amount: dto.openingBalance,
+        currency: wallet.currency,
+        fxRate: wallet.currency === Currency.USD ? dto.openingFxRate : undefined,
+        toWalletId: wallet.id,
+        note: 'Opening balance',
+      });
+    }
     return wallet;
   }
 

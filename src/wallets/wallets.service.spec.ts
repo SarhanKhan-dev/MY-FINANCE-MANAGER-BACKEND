@@ -1,7 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Currency, Prisma, TransactionType, WalletKind } from '@prisma/client';
 import { EventsService } from '../events/events.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { TransactionsService } from '../transactions/transactions.service';
 import { WalletsService } from './wallets.service';
 
 describe('WalletsService', () => {
@@ -12,12 +13,14 @@ describe('WalletsService', () => {
     transaction: { groupBy: jest.fn() },
   };
   const events = { record: jest.fn() };
+  const transactions = { create: jest.fn() };
 
   beforeEach(() => {
     jest.clearAllMocks();
     service = new WalletsService(
       prisma as unknown as PrismaService,
       events as unknown as EventsService,
+      transactions as unknown as TransactionsService,
     );
   });
 
@@ -96,6 +99,100 @@ describe('WalletsService', () => {
 
     expect(balances.get('usd')?.toFixed(2)).toBe('50.00');
     expect(balances.get('pkr')?.toFixed(2)).toBe('13925.00');
+  });
+
+  describe('starting balances', () => {
+    it('records an OPENING entry when a wallet starts with money', async () => {
+      prisma.wallet.findFirst.mockResolvedValue(null);
+      prisma.wallet.create.mockResolvedValue({
+        id: 'w1',
+        userId: 'u1',
+        name: 'Meezan Bank',
+        kind: WalletKind.BANK,
+        currency: Currency.PKR,
+      });
+
+      await service.create('u1', {
+        name: 'Meezan Bank',
+        kind: WalletKind.BANK,
+        currency: Currency.PKR,
+        openingBalance: 250000,
+      });
+
+      expect(transactions.create).toHaveBeenCalledWith(
+        'u1',
+        expect.objectContaining({
+          type: TransactionType.OPENING,
+          amount: 250000,
+          currency: Currency.PKR,
+          toWalletId: 'w1',
+          note: 'Opening balance',
+        }),
+      );
+    });
+
+    it('skips the OPENING entry when no starting balance is given', async () => {
+      prisma.wallet.findFirst.mockResolvedValue(null);
+      prisma.wallet.create.mockResolvedValue({
+        id: 'w1',
+        userId: 'u1',
+        name: 'Cash',
+        kind: WalletKind.CASH,
+        currency: Currency.PKR,
+      });
+
+      await service.create('u1', {
+        name: 'Cash',
+        kind: WalletKind.CASH,
+        currency: Currency.PKR,
+      });
+
+      expect(transactions.create).not.toHaveBeenCalled();
+    });
+
+    it('demands the USD rate before opening a USD wallet with money', async () => {
+      prisma.wallet.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.create('u1', {
+          name: 'Dollar stash',
+          kind: WalletKind.CASH,
+          currency: Currency.USD,
+          openingBalance: 300,
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.wallet.create).not.toHaveBeenCalled();
+    });
+
+    it('passes the rate through for a USD starting balance', async () => {
+      prisma.wallet.findFirst.mockResolvedValue(null);
+      prisma.wallet.create.mockResolvedValue({
+        id: 'w2',
+        userId: 'u1',
+        name: 'Dollar stash',
+        kind: WalletKind.CASH,
+        currency: Currency.USD,
+      });
+
+      await service.create('u1', {
+        name: 'Dollar stash',
+        kind: WalletKind.CASH,
+        currency: Currency.USD,
+        openingBalance: 300,
+        openingFxRate: 278,
+      });
+
+      expect(transactions.create).toHaveBeenCalledWith(
+        'u1',
+        expect.objectContaining({
+          type: TransactionType.OPENING,
+          amount: 300,
+          currency: Currency.USD,
+          fxRate: 278,
+          toWalletId: 'w2',
+        }),
+      );
+    });
   });
 
   it('refuses to archive a wallet that still holds money', async () => {

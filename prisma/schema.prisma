@@ -253,6 +253,7 @@ enum TransactionType {
   COMMITTEE_PAY
   COMMITTEE_PAYOUT
   CHARITY
+  OPENING
 }
 
 model Transaction {

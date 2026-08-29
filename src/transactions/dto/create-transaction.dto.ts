@@ -108,6 +108,7 @@ export class CreateTransactionDto {
         TransactionType.CONVERSION,
         TransactionType.BORROW,
         TransactionType.REPAY_IN,
+        TransactionType.OPENING,
       ] as TransactionType[]
     ).includes(o.type),
   )
