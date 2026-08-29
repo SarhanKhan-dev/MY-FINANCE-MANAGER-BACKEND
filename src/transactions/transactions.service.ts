@@ -47,6 +47,8 @@ const NO_WALLET_TYPES: TransactionType[] = [
   TransactionType.WRITE_OFF,
   TransactionType.BALANCE_OUT,
 ];
+// Committee entries carry a person only when a wallet or the organizer's
+// ledger is involved — backfilled months from before tracking carry neither.
 const PERSON_REQUIRED_TYPES: TransactionType[] = [
   TransactionType.BORROW,
   TransactionType.LEND,
@@ -56,8 +58,6 @@ const PERSON_REQUIRED_TYPES: TransactionType[] = [
   TransactionType.TAKEN,
   TransactionType.WRITE_OFF,
   TransactionType.BALANCE_OUT,
-  TransactionType.COMMITTEE_PAY,
-  TransactionType.COMMITTEE_PAYOUT,
 ];
 const CAP_TYPES: TransactionType[] = [
   TransactionType.EXPENSE,
