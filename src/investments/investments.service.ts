@@ -350,11 +350,18 @@ export class InvestmentsService {
     let value: number;
     let unitPrice: number | undefined;
     if (isStock) {
-      if (!input.unitPrice || input.unitPrice <= 0) {
-        throw new BadRequestException('Enter the price per share');
+      const units = Number(investment.units ?? 0);
+      if (input.value !== undefined && input.value >= 0) {
+        // The statement total wins exactly; NAV is derived for display so
+        // rounding never leaves the balance a few rupees off.
+        value = round2(input.value);
+        unitPrice = units > 0 ? round4(value / units) : undefined;
+      } else if (input.unitPrice && input.unitPrice > 0) {
+        unitPrice = input.unitPrice;
+        value = round2(units * input.unitPrice);
+      } else {
+        throw new BadRequestException('Enter the total value or the unit price');
       }
-      unitPrice = input.unitPrice;
-      value = round2(Number(investment.units ?? 0) * input.unitPrice);
     } else {
       if (input.value === undefined || input.value < 0) {
         throw new BadRequestException('Enter the value');

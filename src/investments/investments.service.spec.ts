@@ -64,6 +64,30 @@ describe('InvestmentsService', () => {
     );
   });
 
+  it('takes the exact statement total for a fund and derives the NAV from it', async () => {
+    prisma.investment.findFirst.mockResolvedValue(
+      stock({
+        kind: InvestmentKind.FUND,
+        units: new Prisma.Decimal(1555.43),
+        currentUnitPrice: new Prisma.Decimal(66),
+      }),
+    );
+    prisma.investment.update.mockImplementation(({ data }) =>
+      Promise.resolve(stock({ ...data, currentValue: new Prisma.Decimal(data.currentValue) })),
+    );
+
+    await service.updateValue('u1', 'inv1', { value: 103382 });
+
+    expect(prisma.investment.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          currentValue: 103382,
+          currentUnitPrice: Math.round((103382 / 1555.43) * 10000) / 10000,
+        }),
+      }),
+    );
+  });
+
   it('then sold at 40 — realized gain of 4 per share on average cost', async () => {
     prisma.investment.findFirst.mockResolvedValue(stock());
     prisma.investment.update.mockImplementation(({ data }) => Promise.resolve(stock(data)));
