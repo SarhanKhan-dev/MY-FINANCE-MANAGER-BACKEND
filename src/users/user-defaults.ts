@@ -8,11 +8,14 @@ export const DEFAULT_WALLETS: { name: string; kind: WalletKind; currency: Curren
   { name: 'JazzCash', kind: WalletKind.MOBILE, currency: Currency.PKR },
 ];
 
+// Spending categories are for money leaving wallets. Debt write-offs are NOT
+// one of these — they live in the People ledger as the WRITE_OFF entry type.
 export const DEFAULT_CATEGORIES = [
   'Food',
   'Dining out',
   'Grocery',
   'Transport',
+  'Fuel',
   'Health',
   'Personal care',
   'Utilities',
@@ -20,7 +23,6 @@ export const DEFAULT_CATEGORIES = [
   'Staff salaries',
   'Charity',
   'Gifts',
-  'Written off',
   'Other',
 ];
 

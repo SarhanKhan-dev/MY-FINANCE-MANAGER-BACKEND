@@ -90,6 +90,28 @@ async function main(): Promise<void> {
       await seedProductCatalog(tx, user.id);
       await ensureDefaultCategories(tx, user.id);
     });
+
+    // 'Written off' was seeded as a spending category by mistake — write-offs
+    // are People-ledger entries. Tuck it away where it was never used.
+    const writtenOff = await prisma.category.findFirst({
+      where: {
+        userId: user.id,
+        name: { equals: 'Written off', mode: 'insensitive' },
+        archivedAt: null,
+      },
+    });
+    if (writtenOff) {
+      const used = await prisma.transaction.count({
+        where: { userId: user.id, categoryId: writtenOff.id },
+      });
+      if (used === 0) {
+        await prisma.category.update({
+          where: { id: writtenOff.id },
+          data: { archivedAt: new Date() },
+        });
+        console.log(`archived unused 'Written off' category for ${user.username}`);
+      }
+    }
     console.log(`catalog and categories ensured for ${user.username}`);
   }
 }
