@@ -13,6 +13,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { EventsModule } from './events/events.module';
 import { FxModule } from './fx/fx.module';
+import { GoalsModule } from './goals/goals.module';
 import { GoldModule } from './gold/gold.module';
 import { InvestmentsModule } from './investments/investments.module';
 import { MerchantsModule } from './merchants/merchants.module';
@@ -25,6 +26,7 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { UsersModule } from './users/users.module';
 import { WalletsModule } from './wallets/wallets.module';
+import { ZakatModule } from './zakat/zakat.module';
 
 @Module({
   imports: [
@@ -48,6 +50,8 @@ import { WalletsModule } from './wallets/wallets.module';
     InvestmentsModule,
     GoldModule,
     CommitteesModule,
+    GoalsModule,
+    ZakatModule,
     ReportsModule,
   ],
   controllers: [AppController],

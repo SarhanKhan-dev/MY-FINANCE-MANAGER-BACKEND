@@ -147,6 +147,11 @@ export class CreateTransactionDto {
   @MaxLength(500)
   note?: string;
 
+  @ApiPropertyOptional({ description: 'Charity only: this payment is zakat' })
+  @IsOptional()
+  @IsBoolean()
+  isZakat?: boolean;
+
   @ApiPropertyOptional({ description: 'Save even if it looks like a duplicate' })
   @IsOptional()
   @IsBoolean()

@@ -11,6 +11,8 @@ export class SettingsDto {
   @ApiProperty() countLendingInCap: boolean;
   @ApiProperty() countWriteOffsInCap: boolean;
   @ApiProperty() countCommitteesInCap: boolean;
+  @ApiProperty() countCharityInCap: boolean;
+  @ApiProperty({ type: String, nullable: true }) zakatNisabPkr: string | null;
 
   @ApiProperty({ type: String, format: 'date-time' })
   updatedAt: Date;
@@ -22,6 +24,8 @@ export class SettingsDto {
     dto.countLendingInCap = settings.countLendingInCap;
     dto.countWriteOffsInCap = settings.countWriteOffsInCap;
     dto.countCommitteesInCap = settings.countCommitteesInCap;
+    dto.countCharityInCap = settings.countCharityInCap;
+    dto.zakatNisabPkr = settings.zakatNisabPkr ? settings.zakatNisabPkr.toString() : null;
     dto.updatedAt = settings.updatedAt;
     return dto;
   }

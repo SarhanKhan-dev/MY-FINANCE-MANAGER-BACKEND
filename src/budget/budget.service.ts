@@ -91,12 +91,14 @@ export class BudgetService {
       countLendingInCap: boolean;
       countWriteOffsInCap: boolean;
       countCommitteesInCap: boolean;
+      countCharityInCap: boolean;
     },
   ): Promise<number> {
     const capTypes: TransactionType[] = [TransactionType.EXPENSE];
     if (settings.countLendingInCap) capTypes.push(TransactionType.LEND);
     if (settings.countWriteOffsInCap) capTypes.push(TransactionType.TAKEN);
     if (settings.countCommitteesInCap) capTypes.push(TransactionType.COMMITTEE_PAY);
+    if (settings.countCharityInCap) capTypes.push(TransactionType.CHARITY);
 
     const expenses = await this.prisma.transaction.findMany({
       where: {

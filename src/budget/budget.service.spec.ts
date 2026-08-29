@@ -20,6 +20,7 @@ describe('BudgetService', () => {
     countLendingInCap: false,
     countWriteOffsInCap: true,
     countCommitteesInCap: false,
+    countCharityInCap: true,
   };
 
   beforeEach(() => {
@@ -46,7 +47,7 @@ describe('BudgetService', () => {
     expect(status.pct).toBe(58);
   });
 
-  it('counts expenses and taken money by default, never lending', async () => {
+  it('counts expenses, taken money, and charity by default, never lending', async () => {
     prisma.transaction.findMany.mockResolvedValue([]);
 
     await service.current('u1');
@@ -54,7 +55,9 @@ describe('BudgetService', () => {
     expect(prisma.transaction.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          type: { in: [TransactionType.EXPENSE, TransactionType.TAKEN] },
+          type: {
+            in: [TransactionType.EXPENSE, TransactionType.TAKEN, TransactionType.CHARITY],
+          },
         }),
       }),
     );
@@ -70,7 +73,12 @@ describe('BudgetService', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           type: {
-            in: [TransactionType.EXPENSE, TransactionType.LEND, TransactionType.TAKEN],
+            in: [
+              TransactionType.EXPENSE,
+              TransactionType.LEND,
+              TransactionType.TAKEN,
+              TransactionType.CHARITY,
+            ],
           },
         }),
       }),

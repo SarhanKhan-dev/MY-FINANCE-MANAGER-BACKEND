@@ -31,6 +31,8 @@ export class SettingsService {
         countLendingInCap: dto.countLendingInCap,
         countWriteOffsInCap: dto.countWriteOffsInCap,
         countCommitteesInCap: dto.countCommitteesInCap,
+        countCharityInCap: dto.countCharityInCap,
+        zakatNisabPkr: dto.zakatNisabPkr,
       },
     });
 

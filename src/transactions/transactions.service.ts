@@ -32,6 +32,7 @@ const WALLET_OUT_TYPES: TransactionType[] = [
   TransactionType.REPAY_OUT,
   TransactionType.TAKEN,
   TransactionType.INVESTMENT_IN,
+  TransactionType.CHARITY,
 ];
 const NO_WALLET_TYPES: TransactionType[] = [
   TransactionType.WORK_OFFSET,
@@ -55,6 +56,7 @@ const CAP_TYPES: TransactionType[] = [
   TransactionType.LEND,
   TransactionType.TAKEN,
   TransactionType.COMMITTEE_PAY,
+  TransactionType.CHARITY,
 ];
 
 interface NormalizedItem {
@@ -80,6 +82,7 @@ interface NormalizedTransaction {
   incomeSource: string | null;
   incomeType: string | null;
   note: string | null;
+  isZakat: boolean;
   items?: NormalizedItem[];
 }
 
@@ -127,6 +130,7 @@ export class TransactionsService {
       incomeSource: dto.incomeSource?.trim() || null,
       incomeType: dto.incomeType?.trim() || null,
       note: dto.note?.trim() || null,
+      isZakat: dto.isZakat ?? false,
       items: dto.items?.map((item) => ({
         productId: item.productId ?? null,
         label: item.label?.trim() || null,
@@ -238,6 +242,7 @@ export class TransactionsService {
       incomeType:
         dto.incomeType !== undefined ? dto.incomeType.trim() || null : existing.incomeType,
       note: dto.note !== undefined ? dto.note.trim() || null : existing.note,
+      isZakat: dto.isZakat !== undefined ? dto.isZakat : existing.isZakat,
       items: dto.items?.map((item) => ({
         productId: item.productId ?? null,
         label: item.label?.trim() || null,
@@ -516,6 +521,9 @@ export class TransactionsService {
       data.incomeSource = null;
       data.incomeType = null;
     }
+    if (data.type !== TransactionType.CHARITY) {
+      data.isZakat = false;
+    }
 
     if (data.categoryId) {
       const category = await this.prisma.category.findFirst({
@@ -655,6 +663,7 @@ export class TransactionsService {
       incomeSource: tx.incomeSource,
       incomeType: tx.incomeType,
       note: tx.note,
+      isZakat: tx.isZakat || undefined,
       items: tx.items.length > 0 ? tx.items.length : undefined,
     };
   }

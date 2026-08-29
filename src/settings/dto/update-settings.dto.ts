@@ -1,5 +1,13 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsInt, IsNumber, IsOptional, IsPositive, Max, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsPositive,
+  Max,
+  Min,
+} from 'class-validator';
 
 export class UpdateSettingsDto {
   @ApiPropertyOptional({ example: 100000, description: 'Monthly spend cap in PKR' })
@@ -30,4 +38,15 @@ export class UpdateSettingsDto {
   @IsOptional()
   @IsBoolean()
   countCommitteesInCap?: boolean;
+
+  @ApiPropertyOptional({ description: 'Count charity toward the cap' })
+  @IsOptional()
+  @IsBoolean()
+  countCharityInCap?: boolean;
+
+  @ApiPropertyOptional({ description: 'Manual nisab threshold in PKR (overrides the gold-rate math)' })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  zakatNisabPkr?: number;
 }
