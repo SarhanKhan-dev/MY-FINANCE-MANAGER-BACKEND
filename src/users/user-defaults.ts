@@ -11,7 +11,8 @@ export const DEFAULT_WALLETS: { name: string; kind: WalletKind; currency: Curren
 // One category world: spending categories mirror the product catalog groups,
 // plus the few expense-only buckets that have no products (meals out, bills).
 // Person-directed money (salaries, write-offs, loans) is NOT a category —
-// those are People-ledger transaction types.
+// those are People-ledger transaction types. Gifts and Allowance are the two
+// exceptions: cash handed over freely, tagged to a person, never a debt.
 export const DEFAULT_CATEGORIES = [
   'Dairy & Eggs',
   'Vegetables',
@@ -32,6 +33,7 @@ export const DEFAULT_CATEGORIES = [
   'Utilities',
   'Charity',
   'Gifts',
+  'Allowance',
   'Other',
 ];
 
