@@ -1,11 +1,28 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { Prisma } from '@prisma/client';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { SafeUser } from '../common/types/safe-user';
 import { CreateWalletDto, UpdateWalletDto } from './dto/create-wallet.dto';
 import { WalletDto } from './dto/wallet.dto';
-import { WalletsService } from './wallets.service';
+import { WalletLoanPerson, WalletLoansView, WalletsService } from './wallets.service';
+
+class WalletLoanPersonDto implements WalletLoanPerson {
+  @ApiProperty() personId: string;
+  @ApiProperty() name: string;
+  @ApiProperty() borrowedInPkr: number;
+  @ApiProperty() lentOutPkr: number;
+  @ApiProperty() stillOwePkr: number;
+  @ApiProperty() stillOwedToMePkr: number;
+}
+
+class WalletLoansViewDto implements WalletLoansView {
+  @ApiProperty() borrowedInPkr: number;
+  @ApiProperty() lentOutPkr: number;
+  @ApiProperty() stillOwePkr: number;
+  @ApiProperty() stillOwedToMePkr: number;
+  @ApiProperty({ type: WalletLoanPersonDto, isArray: true }) people: WalletLoanPersonDto[];
+}
 
 @ApiTags('wallets')
 @ApiBearerAuth()
@@ -16,8 +33,19 @@ export class WalletsController {
   @Get()
   @ApiOkResponse({ type: WalletDto, isArray: true })
   async list(@CurrentUser() user: SafeUser): Promise<WalletDto[]> {
-    const rows = await this.walletsService.list(user.id);
-    return rows.map(({ wallet, balance }) => WalletDto.from(wallet, balance.toFixed(2)));
+    const [rows, slashes] = await Promise.all([
+      this.walletsService.list(user.id),
+      this.walletsService.loanSlashes(user.id),
+    ]);
+    return rows.map(({ wallet, balance }) =>
+      WalletDto.from(wallet, balance.toFixed(2), slashes.get(wallet.id)),
+    );
+  }
+
+  @Get(':id/loans')
+  @ApiOkResponse({ type: WalletLoansViewDto })
+  loans(@CurrentUser() user: SafeUser, @Param('id') id: string): Promise<WalletLoansViewDto> {
+    return this.walletsService.loanFlows(user.id, id);
   }
 
   @Post()
