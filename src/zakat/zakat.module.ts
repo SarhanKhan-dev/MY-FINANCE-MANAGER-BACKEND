@@ -10,5 +10,6 @@ import { ZakatService } from './zakat.service';
   imports: [WalletsModule, FxModule, GoldModule, InvestmentsModule],
   controllers: [ZakatController],
   providers: [ZakatService],
+  exports: [ZakatService],
 })
 export class ZakatModule {}

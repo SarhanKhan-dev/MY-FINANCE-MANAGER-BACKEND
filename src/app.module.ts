@@ -18,6 +18,7 @@ import { GoalsModule } from './goals/goals.module';
 import { GoldModule } from './gold/gold.module';
 import { InvestmentsModule } from './investments/investments.module';
 import { MerchantsModule } from './merchants/merchants.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { PeopleModule } from './people/people.module';
 import { MailModule } from './mail/mail.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -57,6 +58,7 @@ import { ZakatModule } from './zakat/zakat.module';
     GiftsModule,
     ZakatModule,
     ReportsModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [
