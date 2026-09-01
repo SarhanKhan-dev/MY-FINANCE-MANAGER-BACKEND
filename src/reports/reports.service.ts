@@ -25,6 +25,8 @@ export interface OverviewTotals {
   banksPkr: number;
   mobilePkr: number;
   cashPkr: number;
+  /** USD wallet balances, kept in dollars — never converted into the PKR totals. */
+  dollarsUsd: number;
   investmentsPkr: number;
   goldPkr: number | null;
   usdRate: number | null;
@@ -109,36 +111,29 @@ export class ReportsService {
     ]);
 
     const active = walletRows.filter(({ wallet }) => !wallet.archivedAt);
-    let netWorth: number | null = 0;
+    let netWorth = 0;
     let banks = 0;
     let mobile = 0;
     let cash = 0;
+    let dollars = 0;
 
     for (const { wallet, balance } of active) {
       const value = Number(balance);
-      let pkrValue: number | null;
-      if (wallet.currency === Currency.PKR) {
-        pkrValue = value;
-      } else if (usdRate) {
-        pkrValue = value * usdRate;
-      } else {
-        pkrValue = null;
-      }
-      if (pkrValue === null) {
-        netWorth = null;
+      // Dollars stay dollars: shown as their own figure, never folded into
+      // the PKR totals. The only PKR they become is an explicit conversion.
+      if (wallet.currency !== Currency.PKR) {
+        dollars += value;
         continue;
       }
-      if (netWorth !== null) netWorth += pkrValue;
-      if (wallet.kind === WalletKind.BANK) banks += pkrValue;
-      if (wallet.kind === WalletKind.MOBILE) mobile += pkrValue;
-      if (wallet.kind === WalletKind.CASH) cash += pkrValue;
+      netWorth += value;
+      if (wallet.kind === WalletKind.BANK) banks += value;
+      if (wallet.kind === WalletKind.MOBILE) mobile += value;
+      if (wallet.kind === WalletKind.CASH) cash += value;
     }
 
     const investmentsPkr = portfolio.summary.valuePkr;
-    if (netWorth !== null) {
-      netWorth += investmentsPkr;
-      if (goldPkr !== null) netWorth += goldPkr;
-    }
+    netWorth += investmentsPkr;
+    if (goldPkr !== null) netWorth += goldPkr;
 
     const round = (value: number) => Math.round(value * 100) / 100;
     return {
@@ -152,10 +147,11 @@ export class ReportsService {
         archived: wallet.archivedAt !== null,
       })),
       totals: {
-        netWorthPkr: netWorth === null ? null : round(netWorth),
+        netWorthPkr: round(netWorth),
         banksPkr: round(banks),
         mobilePkr: round(mobile),
         cashPkr: round(cash),
+        dollarsUsd: round(dollars),
         investmentsPkr: round(investmentsPkr),
         goldPkr,
         usdRate,

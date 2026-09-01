@@ -21,6 +21,8 @@ class OverviewTotalsDto {
   @ApiProperty() banksPkr: number;
   @ApiProperty() mobilePkr: number;
   @ApiProperty() cashPkr: number;
+  @ApiProperty({ description: 'USD wallet balances in dollars, never converted' })
+  dollarsUsd: number;
   @ApiProperty() investmentsPkr: number;
   @ApiProperty({ type: Number, nullable: true }) goldPkr: number | null;
   @ApiProperty({ type: Number, nullable: true }) usdRate: number | null;
