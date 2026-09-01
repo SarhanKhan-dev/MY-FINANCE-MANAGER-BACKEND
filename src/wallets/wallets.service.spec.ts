@@ -237,11 +237,18 @@ describe('WalletsService', () => {
   });
 
   describe('loan slashes', () => {
-    const borrowRow = (walletId: string, amount: number, personId: string, name: string) => ({
+    const borrowRow = (
+      walletId: string,
+      amount: number,
+      personId: string,
+      name: string,
+      currency: Currency = Currency.PKR,
+      fxRate: number | null = null,
+    ) => ({
       type: TransactionType.BORROW,
       amount: new Prisma.Decimal(amount),
-      currency: Currency.PKR,
-      fxRate: null,
+      currency,
+      fxRate: fxRate === null ? null : new Prisma.Decimal(fxRate),
       toWalletId: walletId,
       fromWalletId: null,
       person: { id: personId, name },
@@ -270,12 +277,27 @@ describe('WalletsService', () => {
       );
 
       const slashes = await service.loanSlashes('u1');
-      expect(slashes.get('bank')).toEqual({ stillOwePkr: 20000, stillOwedToMePkr: 4000 });
-      expect(slashes.get('cash')).toEqual({ stillOwePkr: 10000, stillOwedToMePkr: 0 });
+      expect(slashes.get('bank')).toEqual({ stillOwe: 20000, stillOwedToMe: 4000 });
+      expect(slashes.get('cash')).toEqual({ stillOwe: 10000, stillOwedToMe: 0 });
     });
 
-    it('reports per-person flows for one wallet', async () => {
-      prisma.wallet.findFirst.mockResolvedValue({ id: 'bank', userId: 'u1' });
+    it('keeps dollar loans in dollars, never converted', async () => {
+      prisma.transaction.findMany.mockResolvedValue([
+        borrowRow('usd-wallet', 600, 'john', 'John', Currency.USD, 280),
+      ]);
+      // Half repaid: entry-time PKR value 168,000, outstanding 84,000.
+      debts.positions.mockResolvedValue(
+        new Map([
+          ['john', { personId: 'john', iOwePkr: 84000, owedToMePkr: 0, takenPkr: 0, writtenOffPkr: 0 }],
+        ]),
+      );
+
+      const slashes = await service.loanSlashes('u1');
+      expect(slashes.get('usd-wallet')).toEqual({ stillOwe: 300, stillOwedToMe: 0 });
+    });
+
+    it('reports per-person flows for one wallet in its own currency', async () => {
+      prisma.wallet.findFirst.mockResolvedValue({ id: 'bank', userId: 'u1', currency: Currency.PKR });
       prisma.transaction.findMany.mockResolvedValue([
         borrowRow('bank', 40000, 'ali', 'Ali'),
         borrowRow('cash', 20000, 'ali', 'Ali'),
@@ -289,19 +311,20 @@ describe('WalletsService', () => {
       );
 
       const view = await service.loanFlows('u1', 'bank');
-      expect(view.borrowedInPkr).toBe(40000);
-      expect(view.lentOutPkr).toBe(10000);
-      expect(view.stillOwePkr).toBe(20000);
-      expect(view.stillOwedToMePkr).toBe(4000);
-      expect(view.people[0]).toMatchObject({ personId: 'ali', borrowedInPkr: 40000, stillOwePkr: 20000 });
-      expect(view.people[1]).toMatchObject({ personId: 'sara', lentOutPkr: 10000, stillOwedToMePkr: 4000 });
+      expect(view.currency).toBe(Currency.PKR);
+      expect(view.borrowedIn).toBe(40000);
+      expect(view.lentOut).toBe(10000);
+      expect(view.stillOwe).toBe(20000);
+      expect(view.stillOwedToMe).toBe(4000);
+      expect(view.people[0]).toMatchObject({ personId: 'ali', borrowedIn: 40000, stillOwe: 20000 });
+      expect(view.people[1]).toMatchObject({ personId: 'sara', lentOut: 10000, stillOwedToMe: 4000 });
     });
 
     it('leaves fully repaid wallets clean', async () => {
       prisma.transaction.findMany.mockResolvedValue([borrowRow('bank', 40000, 'ali', 'Ali')]);
       debts.positions.mockResolvedValue(new Map());
       const slashes = await service.loanSlashes('u1');
-      expect(slashes.get('bank')).toEqual({ stillOwePkr: 0, stillOwedToMePkr: 0 });
+      expect(slashes.get('bank')).toEqual({ stillOwe: 0, stillOwedToMe: 0 });
     });
   });
 });

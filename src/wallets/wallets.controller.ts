@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiProperty, ApiTags } from '@nestjs/swagger';
-import { Prisma } from '@prisma/client';
+import { Currency, Prisma } from '@prisma/client';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { SafeUser } from '../common/types/safe-user';
 import { CreateWalletDto, UpdateWalletDto } from './dto/create-wallet.dto';
@@ -10,17 +10,18 @@ import { WalletLoanPerson, WalletLoansView, WalletsService } from './wallets.ser
 class WalletLoanPersonDto implements WalletLoanPerson {
   @ApiProperty() personId: string;
   @ApiProperty() name: string;
-  @ApiProperty() borrowedInPkr: number;
-  @ApiProperty() lentOutPkr: number;
-  @ApiProperty() stillOwePkr: number;
-  @ApiProperty() stillOwedToMePkr: number;
+  @ApiProperty() borrowedIn: number;
+  @ApiProperty() lentOut: number;
+  @ApiProperty() stillOwe: number;
+  @ApiProperty() stillOwedToMe: number;
 }
 
 class WalletLoansViewDto implements WalletLoansView {
-  @ApiProperty() borrowedInPkr: number;
-  @ApiProperty() lentOutPkr: number;
-  @ApiProperty() stillOwePkr: number;
-  @ApiProperty() stillOwedToMePkr: number;
+  @ApiProperty({ enum: Currency }) currency: Currency;
+  @ApiProperty() borrowedIn: number;
+  @ApiProperty() lentOut: number;
+  @ApiProperty() stillOwe: number;
+  @ApiProperty() stillOwedToMe: number;
   @ApiProperty({ type: WalletLoanPersonDto, isArray: true }) people: WalletLoanPersonDto[];
 }
 

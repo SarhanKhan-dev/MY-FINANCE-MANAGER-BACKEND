@@ -15,21 +15,25 @@ import { CreateWalletDto, UpdateWalletDto } from './dto/create-wallet.dto';
 
 const ZERO = new Prisma.Decimal(0);
 
+/** All loan figures are in the WALLET'S OWN currency — a dollar loan shows as
+ *  dollars, never silently converted. PKR equivalents (entry-time fx) are used
+ *  only internally to work out how much of a debt is still outstanding. */
 export interface WalletLoanSlash {
-  stillOwePkr: number;
-  stillOwedToMePkr: number;
+  stillOwe: number;
+  stillOwedToMe: number;
 }
 
 export interface WalletLoanPerson extends WalletLoanSlash {
   personId: string;
   name: string;
-  borrowedInPkr: number;
-  lentOutPkr: number;
+  borrowedIn: number;
+  lentOut: number;
 }
 
 export interface WalletLoansView extends WalletLoanSlash {
-  borrowedInPkr: number;
-  lentOutPkr: number;
+  currency: Currency;
+  borrowedIn: number;
+  lentOut: number;
   people: WalletLoanPerson[];
 }
 
@@ -219,29 +223,36 @@ export class WalletsService {
     const byWallet = new Map<string, Map<string, WalletLoanPerson>>();
     if (rows.length === 0) return byWallet;
 
+    interface Flow {
+      native: number;
+      pkr: number;
+    }
     interface PersonFlows {
       name: string;
-      borrow: Map<string, number>;
-      lend: Map<string, number>;
+      borrow: Map<string, Flow>;
+      lend: Map<string, Flow>;
     }
     const flows = new Map<string, PersonFlows>();
     for (const row of rows) {
       const person = row.person as { id: string; name: string };
       const entry = flows.get(person.id) ?? {
         name: person.name,
-        borrow: new Map<string, number>(),
-        lend: new Map<string, number>(),
+        borrow: new Map<string, Flow>(),
+        lend: new Map<string, Flow>(),
       };
+      const native = Number(row.amount);
       const pkr =
-        row.currency === Currency.PKR
-          ? Number(row.amount)
-          : row.fxRate
-            ? Number(row.amount) * Number(row.fxRate)
-            : 0;
+        row.currency === Currency.PKR ? native : row.fxRate ? native * Number(row.fxRate) : 0;
+      const bump = (map: Map<string, Flow>, walletId: string) => {
+        const flow = map.get(walletId) ?? { native: 0, pkr: 0 };
+        flow.native += native;
+        flow.pkr += pkr;
+        map.set(walletId, flow);
+      };
       if (row.type === TransactionType.BORROW && row.toWalletId) {
-        entry.borrow.set(row.toWalletId, (entry.borrow.get(row.toWalletId) ?? 0) + pkr);
+        bump(entry.borrow, row.toWalletId);
       } else if (row.type === TransactionType.LEND && row.fromWalletId) {
-        entry.lend.set(row.fromWalletId, (entry.lend.get(row.fromWalletId) ?? 0) + pkr);
+        bump(entry.lend, row.fromWalletId);
       }
       flows.set(person.id, entry);
     }
@@ -255,43 +266,61 @@ export class WalletsService {
         ({
           personId,
           name,
-          borrowedInPkr: 0,
-          lentOutPkr: 0,
-          stillOwePkr: 0,
-          stillOwedToMePkr: 0,
+          borrowedIn: 0,
+          lentOut: 0,
+          stillOwe: 0,
+          stillOwedToMe: 0,
         } as WalletLoanPerson);
       wallet.set(personId, entry);
       return entry;
     };
+    const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
     for (const [personId, personFlows] of flows) {
       const position = positions.get(personId);
-      const borrowTotal = [...personFlows.borrow.values()].reduce((sum, value) => sum + value, 0);
-      for (const [walletId, amount] of personFlows.borrow) {
+      // Outstanding fraction is worked out in PKR (entry-time fx), then applied
+      // to each wallet's flow in that wallet's own currency.
+      const borrowTotalPkr = [...personFlows.borrow.values()].reduce(
+        (sum, flow) => sum + flow.pkr,
+        0,
+      );
+      const oweFraction =
+        position == null
+          ? 0
+          : borrowTotalPkr > 0
+            ? clamp01(position.iOwePkr / borrowTotalPkr)
+            : position.iOwePkr > 0
+              ? 1
+              : 0;
+      for (const [walletId, flow] of personFlows.borrow) {
         const entry = walletPerson(walletId, personId, personFlows.name);
-        entry.borrowedInPkr = round2(entry.borrowedInPkr + amount);
-        if (position && borrowTotal > 0) {
-          entry.stillOwePkr = round2(
-            entry.stillOwePkr + position.iOwePkr * (amount / borrowTotal),
-          );
-        }
+        entry.borrowedIn = round2(entry.borrowedIn + flow.native);
+        entry.stillOwe = round2(entry.stillOwe + flow.native * oweFraction);
       }
-      const lendTotal = [...personFlows.lend.values()].reduce((sum, value) => sum + value, 0);
-      for (const [walletId, amount] of personFlows.lend) {
+
+      const lendTotalPkr = [...personFlows.lend.values()].reduce(
+        (sum, flow) => sum + flow.pkr,
+        0,
+      );
+      const owedFraction =
+        position == null
+          ? 0
+          : lendTotalPkr > 0
+            ? clamp01(position.owedToMePkr / lendTotalPkr)
+            : position.owedToMePkr > 0
+              ? 1
+              : 0;
+      for (const [walletId, flow] of personFlows.lend) {
         const entry = walletPerson(walletId, personId, personFlows.name);
-        entry.lentOutPkr = round2(entry.lentOutPkr + amount);
-        if (position && lendTotal > 0) {
-          entry.stillOwedToMePkr = round2(
-            entry.stillOwedToMePkr + position.owedToMePkr * (amount / lendTotal),
-          );
-        }
+        entry.lentOut = round2(entry.lentOut + flow.native);
+        entry.stillOwedToMe = round2(entry.stillOwedToMe + flow.native * owedFraction);
       }
     }
 
     return byWallet;
   }
 
-  /** The "you owe / owed to you" slash for every wallet at once. */
+  /** The "you owe / owed to you" slash for every wallet, in each wallet's currency. */
   async loanSlashes(userId: string): Promise<Map<string, WalletLoanSlash>> {
     const attribution = await this.loanAttribution(userId);
     const slashes = new Map<string, WalletLoanSlash>();
@@ -299,12 +328,12 @@ export class WalletsService {
       let stillOwe = 0;
       let stillOwedToMe = 0;
       for (const entry of people.values()) {
-        stillOwe += entry.stillOwePkr;
-        stillOwedToMe += entry.stillOwedToMePkr;
+        stillOwe += entry.stillOwe;
+        stillOwedToMe += entry.stillOwedToMe;
       }
       slashes.set(walletId, {
-        stillOwePkr: round2(stillOwe),
-        stillOwedToMePkr: round2(stillOwedToMe),
+        stillOwe: round2(stillOwe),
+        stillOwedToMe: round2(stillOwedToMe),
       });
     }
     return slashes;
@@ -312,26 +341,27 @@ export class WalletsService {
 
   /** Per-person loan traffic for one wallet: who funded it, who it funded. */
   async loanFlows(userId: string, walletId: string): Promise<WalletLoansView> {
-    await this.findOrFail(userId, walletId);
+    const wallet = await this.findOrFail(userId, walletId);
     const attribution = await this.loanAttribution(userId);
     const people = [...(attribution.get(walletId)?.values() ?? [])].sort(
-      (a, b) => Math.max(b.borrowedInPkr, b.lentOutPkr) - Math.max(a.borrowedInPkr, a.lentOutPkr),
+      (a, b) => Math.max(b.borrowedIn, b.lentOut) - Math.max(a.borrowedIn, a.lentOut),
     );
     let borrowedIn = 0;
     let lentOut = 0;
     let stillOwe = 0;
     let stillOwedToMe = 0;
     for (const entry of people) {
-      borrowedIn += entry.borrowedInPkr;
-      lentOut += entry.lentOutPkr;
-      stillOwe += entry.stillOwePkr;
-      stillOwedToMe += entry.stillOwedToMePkr;
+      borrowedIn += entry.borrowedIn;
+      lentOut += entry.lentOut;
+      stillOwe += entry.stillOwe;
+      stillOwedToMe += entry.stillOwedToMe;
     }
     return {
-      borrowedInPkr: round2(borrowedIn),
-      lentOutPkr: round2(lentOut),
-      stillOwePkr: round2(stillOwe),
-      stillOwedToMePkr: round2(stillOwedToMe),
+      currency: wallet.currency,
+      borrowedIn: round2(borrowedIn),
+      lentOut: round2(lentOut),
+      stillOwe: round2(stillOwe),
+      stillOwedToMe: round2(stillOwedToMe),
       people,
     };
   }

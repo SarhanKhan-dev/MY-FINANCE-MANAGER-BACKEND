@@ -9,15 +9,19 @@ export class WalletDto {
   @ApiProperty({ type: String, example: '25000.00', description: 'Balance in the wallet currency' })
   balance: string;
   @ApiProperty() archived: boolean;
-  @ApiProperty({ description: 'Still owed to people whose loans came into this wallet (PKR)' })
-  loanStillOwePkr: number;
-  @ApiProperty({ description: 'Still owed to you from loans given out of this wallet (PKR)' })
-  loanStillOwedToMePkr: number;
+  @ApiProperty({
+    description: 'Still owed to people whose loans came into this wallet, in the wallet currency',
+  })
+  loanStillOwe: number;
+  @ApiProperty({
+    description: 'Still owed to you from loans given out of this wallet, in the wallet currency',
+  })
+  loanStillOwedToMe: number;
 
   static from(
     wallet: Wallet,
     balance: string,
-    loans?: { stillOwePkr: number; stillOwedToMePkr: number },
+    loans?: { stillOwe: number; stillOwedToMe: number },
   ): WalletDto {
     const dto = new WalletDto();
     dto.id = wallet.id;
@@ -26,8 +30,8 @@ export class WalletDto {
     dto.currency = wallet.currency;
     dto.balance = balance;
     dto.archived = wallet.archivedAt !== null;
-    dto.loanStillOwePkr = loans?.stillOwePkr ?? 0;
-    dto.loanStillOwedToMePkr = loans?.stillOwedToMePkr ?? 0;
+    dto.loanStillOwe = loans?.stillOwe ?? 0;
+    dto.loanStillOwedToMe = loans?.stillOwedToMe ?? 0;
     return dto;
   }
 }
