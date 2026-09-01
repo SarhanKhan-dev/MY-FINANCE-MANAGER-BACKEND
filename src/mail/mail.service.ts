@@ -1,23 +1,55 @@
 import { Injectable, Logger } from '@nestjs/common';
+import * as nodemailer from 'nodemailer';
+import type { Transporter } from 'nodemailer';
 
 /**
- * Sends email through Resend's REST API (https://resend.com).
- * Does nothing until RESEND_API_KEY is set — every send is best-effort and
+ * Sends email over SMTP (e.g. Gmail with an app password) when SMTP_* env vars
+ * are set, falling back to Resend's REST API when only RESEND_API_KEY is set.
+ * Does nothing until one of them is configured — every send is best-effort and
  * never fails the business operation that triggered it.
  */
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
+  private transporter: Transporter | null = null;
+
+  private get smtpConfigured(): boolean {
+    return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+  }
 
   get isConfigured(): boolean {
-    return Boolean(process.env.RESEND_API_KEY);
+    return this.smtpConfigured || Boolean(process.env.RESEND_API_KEY);
   }
 
   private get from(): string {
-    return process.env.EMAIL_FROM || 'PAIS-e <onboarding@resend.dev>';
+    if (process.env.EMAIL_FROM) return process.env.EMAIL_FROM;
+    if (this.smtpConfigured) return `PAIS-e <${process.env.SMTP_USER}>`;
+    return 'PAIS-e <onboarding@resend.dev>';
+  }
+
+  private getTransporter(): Transporter {
+    if (!this.transporter) {
+      const port = Number(process.env.SMTP_PORT ?? 587);
+      this.transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port,
+        secure: port === 465,
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+      });
+    }
+    return this.transporter;
   }
 
   async send(to: string, subject: string, html: string): Promise<boolean> {
+    if (this.smtpConfigured) {
+      try {
+        await this.getTransporter().sendMail({ from: this.from, to, subject, html });
+        return true;
+      } catch (error) {
+        this.logger.warn(`SMTP send failed: ${(error as Error).message}`);
+        return false;
+      }
+    }
     if (!this.isConfigured) return false;
     try {
       const response = await fetch('https://api.resend.com/emails', {
