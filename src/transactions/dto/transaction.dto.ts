@@ -92,6 +92,10 @@ export class TransactionPageDto {
 export class TransactionsSummaryDto {
   @ApiProperty({ description: 'Spent in PKR within the filter' }) spentPkr: number;
   @ApiProperty({ description: 'Received in PKR within the filter' }) receivedPkr: number;
+  @ApiProperty({ description: 'Spent in USD within the filter, never converted' })
+  spentUsd: number;
+  @ApiProperty({ description: 'Received in USD within the filter, never converted' })
+  receivedUsd: number;
   @ApiProperty() entries: number;
   @ApiPropertyOptional({ type: Number, nullable: true, description: 'Largest single expense in PKR' })
   biggestExpensePkr: number | null;

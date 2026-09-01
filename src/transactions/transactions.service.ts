@@ -398,18 +398,25 @@ export class TransactionsService {
       },
     });
 
+    // Each currency is totalled on its own — dollars never become rupees here.
     let spent = 0;
     let received = 0;
+    let spentUsd = 0;
+    let receivedUsd = 0;
     let biggest: number | null = null;
     for (const row of rows) {
-      const pkr = this.toPkr(row.amount, row.currency, row.fxRate);
-      if (pkr === null) continue;
+      const usd = row.currency === Currency.USD;
+      const amount = Number(row.amount);
       const isOut =
         WALLET_OUT_TYPES.includes(row.type) ||
         (WALLET_OPTIONAL_OUT.includes(row.type) && row.fromWalletId !== null);
       if (isOut) {
-        spent += pkr;
-        if (biggest === null || pkr > biggest) biggest = pkr;
+        if (usd) {
+          spentUsd += amount;
+        } else {
+          spent += amount;
+          if (biggest === null || amount > biggest) biggest = amount;
+        }
       }
       // Opening balances seed a wallet and backfilled records moved no money —
       // neither is money received.
@@ -417,25 +424,21 @@ export class TransactionsService {
         (WALLET_IN_TYPES.includes(row.type) && row.type !== TransactionType.OPENING) ||
         (WALLET_OPTIONAL_IN.includes(row.type) && row.toWalletId !== null);
       if (isIn) {
-        received += pkr;
+        if (usd) {
+          receivedUsd += amount;
+        } else {
+          received += amount;
+        }
       }
     }
     return {
       spentPkr: Math.round(spent * 100) / 100,
       receivedPkr: Math.round(received * 100) / 100,
+      spentUsd: Math.round(spentUsd * 100) / 100,
+      receivedUsd: Math.round(receivedUsd * 100) / 100,
       entries: rows.length,
       biggestExpensePkr: biggest === null ? null : Math.round(biggest * 100) / 100,
     };
-  }
-
-  private toPkr(
-    amount: Prisma.Decimal,
-    currency: Currency,
-    fxRate: Prisma.Decimal | null,
-  ): number | null {
-    if (currency === Currency.PKR) return Number(amount);
-    if (fxRate) return Number(amount) * Number(fxRate);
-    return null;
   }
 
   private buildWhere(
