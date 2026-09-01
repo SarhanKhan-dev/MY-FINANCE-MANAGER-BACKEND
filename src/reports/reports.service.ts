@@ -50,7 +50,7 @@ export interface Overview {
   budget: BudgetStatus;
   wallets: OverviewWallet[];
   totals: OverviewTotals;
-  debts: { iOwePkr: number; owedToMePkr: number };
+  debts: { iOwePkr: number; owedToMePkr: number; iOweUsd: number; owedToMeUsd: number };
   categoryLeaders: CategoryLeader[];
   missedDays: string[];
   upcoming: UpcomingItem[];
@@ -156,7 +156,12 @@ export class ReportsService {
         goldPkr,
         usdRate,
       },
-      debts: { iOwePkr: debtsSummary.iOwePkr, owedToMePkr: debtsSummary.owedToMePkr },
+      debts: {
+        iOwePkr: debtsSummary.iOwePkr,
+        owedToMePkr: debtsSummary.owedToMePkr,
+        iOweUsd: debtsSummary.iOweUsd,
+        owedToMeUsd: debtsSummary.owedToMeUsd,
+      },
       categoryLeaders,
       missedDays,
       upcoming,

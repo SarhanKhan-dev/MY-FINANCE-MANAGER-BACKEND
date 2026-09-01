@@ -126,14 +126,31 @@ describe('DebtsService', () => {
     expect(position.owedToMePkr).toBe(8000);
   });
 
-  it('converts USD debt entries at their stored rate', async () => {
+  it('keeps a dollar debt in dollars, never converted', async () => {
     prisma.transaction.findMany.mockResolvedValue([
-      entry(TransactionType.BORROW, 100, 'p1', Currency.USD, 280),
+      entry(TransactionType.BORROW, 800, 'p1', Currency.USD, 280),
+      entry(TransactionType.BORROW, 5000, 'p1'),
+      entry(TransactionType.REPAY_OUT, 300, 'p1', Currency.USD),
     ]);
 
     const position = await service.positionFor('u1', 'p1');
 
-    expect(position.iOwePkr).toBe(28000);
+    expect(position.iOweUsd).toBe(500);
+    expect(position.iOwePkr).toBe(5000);
+  });
+
+  it('rupee repayments never shrink a dollar debt', async () => {
+    prisma.transaction.findMany.mockResolvedValue([
+      entry(TransactionType.BORROW, 800, 'p1', Currency.USD, 280),
+      entry(TransactionType.REPAY_OUT, 224000, 'p1'),
+    ]);
+
+    const position = await service.positionFor('u1', 'p1');
+
+    expect(position.iOweUsd).toBe(800);
+    // The rupee side flips into owed-to-me, exactly as an over-repayment does.
+    expect(position.iOwePkr).toBe(0);
+    expect(position.owedToMePkr).toBe(224000);
   });
 
   it('sums the global summary across people with names', async () => {

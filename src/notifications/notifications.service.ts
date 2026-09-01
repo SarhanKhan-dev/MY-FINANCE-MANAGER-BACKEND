@@ -23,6 +23,8 @@ export interface NotificationsView {
 const SEVERITY_ORDER: Record<NotificationSeverity, number> = { alert: 0, warn: 1, info: 2 };
 
 const rupees = (value: number) => `Rs ${Math.round(value).toLocaleString('en-PK')}`;
+const dollars = (value: number) =>
+  `$${value.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
 
 // Nothing is stored: notifications are derived live from the ledger, so they
 // appear and disappear with the entries themselves and can never go stale.
@@ -101,6 +103,16 @@ export class NotificationsService {
           href: `/people/${person.personId}`,
         });
       }
+      if (person.iOweUsd > 0) {
+        items.push({
+          id: `debt-owe-usd:${person.personId}`,
+          kind: 'DEBT_OWE',
+          severity: 'warn',
+          title: `You owe ${person.name} ${dollars(person.iOweUsd)}`,
+          body: 'A dollar debt stays in dollars until repaid.',
+          href: `/people/${person.personId}`,
+        });
+      }
       if (person.owedToMePkr > 0) {
         items.push({
           id: `debt-owed:${person.personId}`,
@@ -108,6 +120,16 @@ export class NotificationsService {
           severity: 'info',
           title: `${person.name} owes you ${rupees(person.owedToMePkr)}`,
           body: 'Waiting in their ledger.',
+          href: `/people/${person.personId}`,
+        });
+      }
+      if (person.owedToMeUsd > 0) {
+        items.push({
+          id: `debt-owed-usd:${person.personId}`,
+          kind: 'DEBT_OWED',
+          severity: 'info',
+          title: `${person.name} owes you ${dollars(person.owedToMeUsd)}`,
+          body: 'Waiting in their ledger, in dollars.',
           href: `/people/${person.personId}`,
         });
       }

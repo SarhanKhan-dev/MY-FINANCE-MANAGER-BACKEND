@@ -36,6 +36,8 @@ class CategoryLeaderDto {
 class OverviewDebtsDto {
   @ApiProperty() iOwePkr: number;
   @ApiProperty() owedToMePkr: number;
+  @ApiProperty() iOweUsd: number;
+  @ApiProperty() owedToMeUsd: number;
 }
 
 class UpcomingItemDto {

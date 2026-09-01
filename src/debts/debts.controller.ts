@@ -15,11 +15,17 @@ class PersonPositionDto {
   @ApiProperty() owedToMePkr: number;
   @ApiProperty() takenPkr: number;
   @ApiProperty() writtenOffPkr: number;
+  @ApiProperty() iOweUsd: number;
+  @ApiProperty() owedToMeUsd: number;
+  @ApiProperty() takenUsd: number;
+  @ApiProperty() writtenOffUsd: number;
 }
 
 class DebtsSummaryDto {
   @ApiProperty() iOwePkr: number;
   @ApiProperty() owedToMePkr: number;
+  @ApiProperty() iOweUsd: number;
+  @ApiProperty() owedToMeUsd: number;
   @ApiProperty({ type: PersonPositionDto, isArray: true }) people: PersonPositionDto[];
 }
 
@@ -31,6 +37,10 @@ class PersonLedgerDto {
   @ApiProperty() owedToMePkr: number;
   @ApiProperty() takenPkr: number;
   @ApiProperty() writtenOffPkr: number;
+  @ApiProperty() iOweUsd: number;
+  @ApiProperty() owedToMeUsd: number;
+  @ApiProperty() takenUsd: number;
+  @ApiProperty() writtenOffUsd: number;
   @ApiProperty({ type: TransactionDto, isArray: true }) entries: TransactionDto[];
 }
 
@@ -74,6 +84,10 @@ export class DebtsController {
       owedToMePkr: position.owedToMePkr,
       takenPkr: position.takenPkr,
       writtenOffPkr: position.writtenOffPkr,
+      iOweUsd: position.iOweUsd,
+      owedToMeUsd: position.owedToMeUsd,
+      takenUsd: position.takenUsd,
+      writtenOffUsd: position.writtenOffUsd,
       entries: entries.map(TransactionDto.from),
     };
   }

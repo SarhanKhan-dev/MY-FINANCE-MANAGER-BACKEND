@@ -213,7 +213,6 @@ export class WalletsService {
         type: true,
         amount: true,
         currency: true,
-        fxRate: true,
         toWalletId: true,
         fromWalletId: true,
         person: { select: { id: true, name: true } },
@@ -225,7 +224,7 @@ export class WalletsService {
 
     interface Flow {
       native: number;
-      pkr: number;
+      currency: Currency;
     }
     interface PersonFlows {
       name: string;
@@ -240,13 +239,9 @@ export class WalletsService {
         borrow: new Map<string, Flow>(),
         lend: new Map<string, Flow>(),
       };
-      const native = Number(row.amount);
-      const pkr =
-        row.currency === Currency.PKR ? native : row.fxRate ? native * Number(row.fxRate) : 0;
       const bump = (map: Map<string, Flow>, walletId: string) => {
-        const flow = map.get(walletId) ?? { native: 0, pkr: 0 };
-        flow.native += native;
-        flow.pkr += pkr;
+        const flow = map.get(walletId) ?? { native: 0, currency: row.currency };
+        flow.native += Number(row.amount);
         map.set(walletId, flow);
       };
       if (row.type === TransactionType.BORROW && row.toWalletId) {
@@ -276,44 +271,42 @@ export class WalletsService {
     };
     const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
+    // The outstanding fraction is worked out per currency — dollars against the
+    // dollar ledger, rupees against the rupee ledger — then applied to each
+    // wallet's flow in that wallet's own currency. No conversion anywhere.
+    const totalsByCurrency = (map: Map<string, Flow>) => {
+      const totals: Record<Currency, number> = { PKR: 0, USD: 0 };
+      for (const flow of map.values()) totals[flow.currency] += flow.native;
+      return totals;
+    };
+    const fractionFor = (outstanding: number, total: number) =>
+      total > 0 ? clamp01(outstanding / total) : outstanding > 0 ? 1 : 0;
+
     for (const [personId, personFlows] of flows) {
       const position = positions.get(personId);
-      // Outstanding fraction is worked out in PKR (entry-time fx), then applied
-      // to each wallet's flow in that wallet's own currency.
-      const borrowTotalPkr = [...personFlows.borrow.values()].reduce(
-        (sum, flow) => sum + flow.pkr,
-        0,
-      );
-      const oweFraction =
-        position == null
-          ? 0
-          : borrowTotalPkr > 0
-            ? clamp01(position.iOwePkr / borrowTotalPkr)
-            : position.iOwePkr > 0
-              ? 1
-              : 0;
+      const owe: Record<Currency, number> = {
+        PKR: position?.iOwePkr ?? 0,
+        USD: position?.iOweUsd ?? 0,
+      };
+      const owed: Record<Currency, number> = {
+        PKR: position?.owedToMePkr ?? 0,
+        USD: position?.owedToMeUsd ?? 0,
+      };
+
+      const borrowTotals = totalsByCurrency(personFlows.borrow);
       for (const [walletId, flow] of personFlows.borrow) {
         const entry = walletPerson(walletId, personId, personFlows.name);
+        const fraction = fractionFor(owe[flow.currency], borrowTotals[flow.currency]);
         entry.borrowedIn = round2(entry.borrowedIn + flow.native);
-        entry.stillOwe = round2(entry.stillOwe + flow.native * oweFraction);
+        entry.stillOwe = round2(entry.stillOwe + flow.native * fraction);
       }
 
-      const lendTotalPkr = [...personFlows.lend.values()].reduce(
-        (sum, flow) => sum + flow.pkr,
-        0,
-      );
-      const owedFraction =
-        position == null
-          ? 0
-          : lendTotalPkr > 0
-            ? clamp01(position.owedToMePkr / lendTotalPkr)
-            : position.owedToMePkr > 0
-              ? 1
-              : 0;
+      const lendTotals = totalsByCurrency(personFlows.lend);
       for (const [walletId, flow] of personFlows.lend) {
         const entry = walletPerson(walletId, personId, personFlows.name);
+        const fraction = fractionFor(owed[flow.currency], lendTotals[flow.currency]);
         entry.lentOut = round2(entry.lentOut + flow.native);
-        entry.stillOwedToMe = round2(entry.stillOwedToMe + flow.native * owedFraction);
+        entry.stillOwedToMe = round2(entry.stillOwedToMe + flow.native * fraction);
       }
     }
 

@@ -656,36 +656,40 @@ export class TransactionsService {
     if (!needsPosition.includes(data.type) || !data.personId) return;
 
     const position = await this.debts.positionFor(userId, data.personId);
-    const pkr =
-      data.currency === Currency.PKR ? data.amount : data.amount * (data.fxRate ?? 0);
+    // Debts never cross currencies: a dollar entry is checked against the
+    // dollar ledger, a rupee entry against the rupee ledger.
+    const usd = data.currency === Currency.USD;
+    const amount = data.amount;
+    const iOwe = usd ? position.iOweUsd : position.iOwePkr;
+    const owedToMe = usd ? position.owedToMeUsd : position.owedToMePkr;
     const epsilon = 0.01;
 
     switch (data.type) {
       case TransactionType.REPAY_OUT:
       case TransactionType.WORK_OFFSET:
-        if (!force && pkr > position.iOwePkr + epsilon) {
+        if (!force && amount > iOwe + epsilon) {
           throw new ConflictException('More than you owe — this flips it. Save anyway?');
         }
         break;
       case TransactionType.REPAY_IN:
-        if (!force && pkr > position.owedToMePkr + epsilon) {
+        if (!force && amount > owedToMe + epsilon) {
           throw new ConflictException('More than they owe — this flips it. Save anyway?');
         }
         break;
       case TransactionType.WRITE_OFF:
-        if (pkr > position.owedToMePkr + epsilon) {
+        if (amount > owedToMe + epsilon) {
           throw new BadRequestException('Only up to what they owe');
         }
         break;
       case TransactionType.BALANCE_OUT: {
-        const limit = Math.min(position.iOwePkr, position.owedToMePkr);
-        if (pkr > limit + epsilon) {
+        const limit = Math.min(iOwe, owedToMe);
+        if (amount > limit + epsilon) {
           throw new BadRequestException('Only up to the smaller side');
         }
         break;
       }
       case TransactionType.COMMITTEE_PAY:
-        if (data.fromWalletId === null && pkr > position.owedToMePkr + epsilon) {
+        if (data.fromWalletId === null && amount > owedToMe + epsilon) {
           throw new BadRequestException('Only up to what they owe you');
         }
         break;

@@ -285,10 +285,23 @@ describe('WalletsService', () => {
       prisma.transaction.findMany.mockResolvedValue([
         borrowRow('usd-wallet', 600, 'john', 'John', Currency.USD, 280),
       ]);
-      // Half repaid: entry-time PKR value 168,000, outstanding 84,000.
+      // Half repaid in dollars: $300 still outstanding on the dollar ledger.
       debts.positions.mockResolvedValue(
         new Map([
-          ['john', { personId: 'john', iOwePkr: 84000, owedToMePkr: 0, takenPkr: 0, writtenOffPkr: 0 }],
+          [
+            'john',
+            {
+              personId: 'john',
+              iOwePkr: 0,
+              owedToMePkr: 0,
+              takenPkr: 0,
+              writtenOffPkr: 0,
+              iOweUsd: 300,
+              owedToMeUsd: 0,
+              takenUsd: 0,
+              writtenOffUsd: 0,
+            },
+          ],
         ]),
       );
 
