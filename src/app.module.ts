@@ -30,6 +30,7 @@ import { TransactionsModule } from './transactions/transactions.module';
 import { UsersModule } from './users/users.module';
 import { WalletsModule } from './wallets/wallets.module';
 import { ZakatModule } from './zakat/zakat.module';
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { ZakatModule } from './zakat/zakat.module';
     ZakatModule,
     ReportsModule,
     NotificationsModule,
+    AiModule,
   ],
   controllers: [AppController],
   providers: [

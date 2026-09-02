@@ -317,7 +317,7 @@ export class ReportsService {
     return (await this.categoryTotals(userId, cycleStart, cycleEnd)).slice(0, 5);
   }
 
-  private async categoryTotals(
+  async categoryTotals(
     userId: string,
     cycleStart: string,
     cycleEnd: string,

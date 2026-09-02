@@ -15,6 +15,7 @@ export class UserDto {
   @ApiProperty({ type: String, nullable: true, format: 'date-time' })
   lastLoginAt: Date | null;
   @ApiProperty({ type: String, format: 'date-time' }) createdAt: Date;
+  @ApiProperty() aiEnabled: boolean;
 
   static from(user: SafeUser): UserDto {
     const dto = new UserDto();
@@ -27,6 +28,7 @@ export class UserDto {
     dto.onboardedAt = user.onboardedAt;
     dto.lastLoginAt = user.lastLoginAt;
     dto.createdAt = user.createdAt;
+    dto.aiEnabled = user.aiEnabled;
     return dto;
   }
 }

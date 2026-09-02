@@ -42,6 +42,7 @@ model User {
   status       UserStatus @default(ACTIVE)
   onboardedAt  DateTime?
   lastLoginAt  DateTime?
+  aiEnabled    Boolean    @default(false)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
@@ -87,19 +88,19 @@ model PasswordToken {
 }
 
 model UserSettings {
-  id                  String   @id @default(cuid())
-  userId              String   @unique
-  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  budgetCapPkr        Decimal  @default(100000) @db.Decimal(14, 2)
-  budgetCycleStartDay Int      @default(1)
-  countLendingInCap   Boolean  @default(false)
-  countWriteOffsInCap Boolean  @default(true)
-  countCommitteesInCap Boolean @default(false)
-  countCharityInCap   Boolean  @default(true)
-  goldRatePkrPerGram  Decimal? @db.Decimal(14, 2)
-  zakatNisabPkr       Decimal? @db.Decimal(14, 2)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  budgetCapPkr         Decimal  @default(100000) @db.Decimal(14, 2)
+  budgetCycleStartDay  Int      @default(1)
+  countLendingInCap    Boolean  @default(false)
+  countWriteOffsInCap  Boolean  @default(true)
+  countCommitteesInCap Boolean  @default(false)
+  countCharityInCap    Boolean  @default(true)
+  goldRatePkrPerGram   Decimal? @db.Decimal(14, 2)
+  zakatNisabPkr        Decimal? @db.Decimal(14, 2)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 }
 
 model Wallet {
@@ -169,15 +170,15 @@ model Person {
 }
 
 model Goal {
-  id        String    @id @default(cuid())
-  userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name      String
-  targetPkr Decimal   @db.Decimal(14, 2)
-  deadline  DateTime?
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  targetPkr  Decimal   @db.Decimal(14, 2)
+  deadline   DateTime?
   archivedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   contributions GoalContribution[]
 
@@ -367,16 +368,16 @@ model InvestmentSnapshot {
 }
 
 model GoldHolding {
-  id            String    @id @default(cuid())
-  userId        String
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name          String
-  weightGrams   Decimal   @db.Decimal(10, 3)
-  purity        String?
-  boughtPricePkr Decimal  @db.Decimal(14, 2)
-  archivedAt    DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  weightGrams    Decimal   @db.Decimal(10, 3)
+  purity         String?
+  boughtPricePkr Decimal   @db.Decimal(14, 2)
+  archivedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([userId])
 }
@@ -518,4 +519,74 @@ model AdminAuditLog {
   createdAt      DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// ---- AI companion ----
+
+/// Singleton row ("global"): which brain is active, superadmin-managed.
+model AiSettings {
+  id         String   @id @default("global")
+  provider   String   @default("glm")
+  model      String   @default("glm-4.6")
+  dailyLimit Int      @default(10)
+  webSearch  Boolean  @default(true)
+  updatedAt  DateTime @updatedAt
+}
+
+model AiChat {
+  id        String      @id @default(cuid())
+  userId    String
+  title     String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  messages  AiMessage[]
+
+  @@index([userId, updatedAt])
+}
+
+model AiMessage {
+  id        String   @id @default(cuid())
+  chatId    String
+  chat      AiChat   @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  role      String
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([chatId, createdAt])
+}
+
+/// Long-term facts the companion keeps per user ("saving for a car").
+model AiMemoryNote {
+  id        String   @id @default(cuid())
+  userId    String
+  note      String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+/// Message counter per user per PKT day — enforces the daily cap.
+model AiUsage {
+  id      String @id @default(cuid())
+  userId  String
+  dateKey String
+  count   Int    @default(0)
+
+  @@unique([userId, dateKey])
+}
+
+/// One frozen row per user per budget cycle — kept forever for 3/6/9/12-month
+/// pattern comparisons. Regenerated only when that month's entries change.
+model MonthlySnapshot {
+  id        String   @id @default(cuid())
+  userId    String
+  cycleKey  String
+  cycleEnd  String
+  data      Json
+  report    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, cycleKey])
+  @@index([userId, cycleKey])
 }
